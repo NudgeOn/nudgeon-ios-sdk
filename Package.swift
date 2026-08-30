@@ -3,7 +3,8 @@ import PackageDescription
 
 let package = Package(
     name: "OndaSDK",
-    platforms: [.iOS(.v15)],
+    // macOS는 단위 테스트 호스트용(async/await·Task 가용). 제품 타깃은 iOS 15+.
+    platforms: [.iOS(.v15), .macOS(.v12)],
     products: [
         .library(name: "OndaSDK", targets: ["OndaSDK"]),
         // NSE 서브모듈 — 도달(delivered) 트래킹·rich push (PRD-01A 3.1)

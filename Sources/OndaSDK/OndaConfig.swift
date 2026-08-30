@@ -11,6 +11,8 @@ public struct OndaConfig {
     public let sdkKey: String
     /// 수집 엔드포인트. 셀프호스팅 시 교체 — SaaS 기본값과 동등 취급 (오픈소스 1급 지원).
     public let apiHost: URL
+    /// App Group ID. 설정 시 NSE(별도 프로세스)가 도달($push_delivered)을 전송할 수 있다 (PRD-01A 3.1).
+    public var appGroup: String?
     public var logLevel: LogLevel
     public var flushInterval: TimeInterval
     public var flushBatchSize: Int
@@ -20,6 +22,7 @@ public struct OndaConfig {
     public init(
         sdkKey: String,
         apiHost: URL,
+        appGroup: String? = nil,
         logLevel: LogLevel = .warn,
         flushInterval: TimeInterval = 10,
         flushBatchSize: Int = 10,
@@ -28,6 +31,7 @@ public struct OndaConfig {
     ) {
         self.sdkKey = sdkKey
         self.apiHost = apiHost
+        self.appGroup = appGroup
         self.logLevel = logLevel
         self.flushInterval = flushInterval
         self.flushBatchSize = flushBatchSize

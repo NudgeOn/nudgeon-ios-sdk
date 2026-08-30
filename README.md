@@ -3,7 +3,7 @@
 Onda 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
 [플랫폼](../onda-platform) · 공개 인터페이스 명세: `onda-platform/docs/prd/PRD-01A`.
 
-> 상태: **M1 코어** (init · identify · track · 오프라인 큐). 푸시(registerForPush·리스너·NSE 도달)는 M2.
+> 상태: **M2 코어 완성** — init · identify · track · 오프라인 큐 · 푸시 등록 · 리스너(콜드스타트 버퍼) · NSE 도달.
 
 ## 설치 (Swift Package Manager)
 
@@ -25,7 +25,44 @@ Onda.track("product_viewed", properties: ["product_id": "P-1", "price": 12900])
 Onda.setUserAttributes(["vip_level": .number(3), "nickname": .string("ethan")])
 // 로그아웃 시 필수 — 이전 유저에게 푸시 가는 사고 방지
 Onda.reset()
+
+// 푸시 (M2)
+Task { let result = await Onda.registerForPush() }   // granted | denied | provisional
+Onda.onPushOpened { payload in router.route(payload.deepLink) }  // 콜드 스타트 유실 없음
+let initial = Onda.getInitialPushPayload()           // 푸시로 앱이 열렸으면 payload
 ```
+
+## AppDelegate 연동 (수동 — 기본, 스위즐링 미채택)
+
+```swift
+func application(_ app: UIApplication,
+                didRegisterForRemoteNotificationsWithDeviceToken token: Data) {
+    Onda.setDeviceToken(token)               // 토큰 대사 → 서버 자동 등록/갱신
+}
+// UNUserNotificationCenterDelegate
+func userNotificationCenter(_ c: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse) async {
+    Onda.handlePushOpened(response.notification.request.content.userInfo)  // 딥링크 라우팅
+}
+func userNotificationCenter(_ c: UNUserNotificationCenter,
+        willPresent n: UNNotification) async -> UNNotificationPresentationOptions {
+    Onda.handlePushReceived(n.request.content.userInfo)
+    return [.banner, .sound]
+}
+```
+
+## 도달 트래킹 (NSE — iOS 도달 지표 필수)
+
+App Group을 코어 설정과 NSE에 공유하고, NSE는 베이스 클래스만 상속한다:
+
+```swift
+// 코어: OndaConfig(sdkKey:, apiHost:, appGroup: "group.io.onda.myapp")
+import OndaNotificationService
+class NotificationService: OndaNotificationServiceBase {
+    override var appGroup: String? { "group.io.onda.myapp" }
+}
+```
+$push_delivered 전송 + `onda.image_url` 리치 푸시 첨부를 자동 처리한다.
 
 ## 아키텍처 (PRD-01A 1.1)
 
@@ -42,11 +79,15 @@ Onda.reset()
 | `Identity.swift` | anon/external/device ID 영속 (reset 정책) |
 | `EventQueue.swift` | 오프라인 영속 큐 (1000건 상한·oldest drop) |
 | `Network.swift` | /v1/track·identify·devices/token 클라이언트 |
+| `PushPayload.swift` | APNs userInfo 파싱·PushPermissionResult·SubscriptionState |
+| `PushManager.swift` | 권한·토큰 대사(S-5)·구독 상태 |
+| `EventBus.swift` | pushOpened/Received 리스너·콜드스타트 20건 버퍼·재생 |
+| `SharedConfig.swift`·`OndaDelivery.swift` | App Group 미러링·NSE 도달 리포터 |
 
 ## 로드맵
 
-- **M1** ✅ init·identify·track·오프라인 큐 (현재)
-- **M2** 오프라인 큐 내구성·reset·속성·푸시 등록·리스너·NSE 도달
+- **M1** ✅ init·identify·track·오프라인 큐
+- **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사·NSE 도달 (현재)
 - **M4** 데모 앱·계약 테스트·SPM/CocoaPods 배포
 
 MIT License.
