@@ -1,0 +1,33 @@
+{
+  "name": "reset_clears_external",
+  "description": "reset 후 track은 external_id 없이 전송 — 이전 유저 미발송(S-4)",
+  "config": { "autoTrackSessions": false, "flushBatchSize": 100 },
+  "steps": [
+    { "call": "identify", "args": { "externalId": "user-A" } },
+    { "call": "track", "args": { "name": "before_logout" } },
+    { "call": "flush" },
+    { "call": "reset" },
+    { "call": "track", "args": { "name": "after_logout" } },
+    { "call": "flush" }
+  ],
+  "expect": [
+    {
+      "path": "/v1/identify",
+      "asserts": [ { "pointer": "external_id", "equals": "user-A" } ]
+    },
+    {
+      "path": "/v1/track",
+      "asserts": [
+        { "pointer": "batch.0.event", "equals": "before_logout" },
+        { "pointer": "batch.0.external_id", "equals": "user-A" }
+      ]
+    },
+    {
+      "path": "/v1/track",
+      "asserts": [
+        { "pointer": "batch.0.event", "equals": "after_logout" },
+        { "pointer": "batch.0.external_id", "absent": true }
+      ]
+    }
+  ]
+}

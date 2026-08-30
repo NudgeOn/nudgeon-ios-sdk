@@ -14,5 +14,7 @@ let package = Package(
         .target(name: "OndaSDK"),
         .target(name: "OndaNotificationService", dependencies: ["OndaSDK"]),
         .testTarget(name: "OndaSDKTests", dependencies: ["OndaSDK"]),
+        // 계약 테스트 — 공용 시나리오(contract-tests/scenarios) × 목 서버 (DEV-sub-05 S-10).
+        .testTarget(name: "OndaContractTests", dependencies: ["OndaSDK"]),
     ]
 )

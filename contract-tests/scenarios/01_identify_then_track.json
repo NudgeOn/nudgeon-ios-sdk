@@ -1,0 +1,29 @@
+{
+  "name": "identify_then_track",
+  "description": "identify 후 track → /v1/identify와 /v1/track 배치 페이로드 검증",
+  "config": { "autoTrackSessions": false, "flushBatchSize": 100 },
+  "steps": [
+    { "call": "identify", "args": { "externalId": "user-123" } },
+    { "call": "track", "args": { "name": "product_viewed", "properties": { "product_id": "P-1", "price": 12900 } } },
+    { "call": "flush" }
+  ],
+  "expect": [
+    {
+      "path": "/v1/identify",
+      "asserts": [
+        { "pointer": "external_id", "equals": "user-123" }
+      ]
+    },
+    {
+      "path": "/v1/track",
+      "asserts": [
+        { "pointer": "batch.0.event", "equals": "product_viewed" },
+        { "pointer": "batch.0.external_id", "equals": "user-123" },
+        { "pointer": "batch.0.properties.product_id", "equals": "P-1" },
+        { "pointer": "batch.0.properties.price", "equals": 12900 },
+        { "pointer": "device.platform", "equals": "ios" },
+        { "pointer": "batch.0.insert_id", "present": true }
+      ]
+    }
+  ]
+}

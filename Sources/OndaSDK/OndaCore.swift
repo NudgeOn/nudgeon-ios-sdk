@@ -13,14 +13,25 @@ final class OndaCore {
     private var flushTimer: DispatchSourceTimer?
     private var flushing = false
 
-    init(config: OndaConfig) {
+    /// 지정 이니셜라이저 — 의존성 주입(계약 테스트 하네스가 격리 인스턴스 구성에 사용).
+    init(config: OndaConfig, identity: Identity, queue: EventQueue, network: Network,
+         push: PushManager, bus: EventBus = EventBus()) {
         self.config = config
-        self.identity = Identity()
-        self.queue = EventQueue()
-        self.network = Network(config: config, deviceId: identity.deviceId)
-        self.push = PushManager(config: config, network: network)
-        self.bus = EventBus()
+        self.identity = identity
+        self.queue = queue
+        self.network = network
+        self.push = push
+        self.bus = bus
         OndaLog.level = config.logLevel
+    }
+
+    /// 프로덕션 편의 이니셜라이저 — 실제 영속 의존성 구성.
+    convenience init(config: OndaConfig) {
+        let identity = Identity()
+        let queue = EventQueue()
+        let network = Network(config: config, deviceId: identity.deviceId)
+        let push = PushManager(config: config, network: network)
+        self.init(config: config, identity: identity, queue: queue, network: network, push: push)
     }
 
     var deviceId: String { identity.deviceId }
@@ -151,6 +162,8 @@ final class OndaCore {
             work.async {
                 if ok { queue.ack(ids) }
                 flushing = false
+                // 잔여분(전송 중 유입·배치 초과) 즉시 이어서 배출 — 타이머 대기 없이 백로그 해소.
+                if ok, queue.count > 0 { flushSync() }
             }
         }
     }

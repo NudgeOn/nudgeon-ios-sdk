@@ -1,0 +1,27 @@
+{
+  "name": "push_token_registration",
+  "description": "setPushToken → /v1/devices/token 토큰 대사 (device_id·platform·external_id 포함)",
+  "config": { "autoTrackSessions": false },
+  "steps": [
+    { "call": "identify", "args": { "externalId": "user-9" } },
+    { "call": "setPushToken", "args": { "hex": "aabbccdd" } }
+  ],
+  "expect": [
+    {
+      "path": "/v1/identify",
+      "asserts": [
+        { "pointer": "external_id", "equals": "user-9" }
+      ]
+    },
+    {
+      "path": "/v1/devices/token",
+      "asserts": [
+        { "pointer": "push_token", "equals": "aabbccdd" },
+        { "pointer": "external_id", "equals": "user-9" },
+        { "pointer": "device.platform", "equals": "ios" },
+        { "pointer": "device.device_id", "present": true },
+        { "pointer": "os_permission", "present": true }
+      ]
+    }
+  ]
+}

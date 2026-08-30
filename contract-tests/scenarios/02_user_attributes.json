@@ -1,0 +1,26 @@
+{
+  "name": "user_attributes",
+  "description": "setUserAttributes → /v1/identify에 attributes 반영 (null=unset)",
+  "config": { "autoTrackSessions": false },
+  "steps": [
+    { "call": "identify", "args": { "externalId": "user-5" } },
+    { "call": "setUserAttributes", "args": { "attrs": { "vip_level": 3, "nickname": "ethan" } } }
+  ],
+  "expect": [
+    {
+      "path": "/v1/identify",
+      "asserts": [
+        { "pointer": "external_id", "equals": "user-5" },
+        { "pointer": "attributes.vip_level", "absent": true }
+      ]
+    },
+    {
+      "path": "/v1/identify",
+      "asserts": [
+        { "pointer": "external_id", "equals": "user-5" },
+        { "pointer": "attributes.vip_level", "equals": 3 },
+        { "pointer": "attributes.nickname", "equals": "ethan" }
+      ]
+    }
+  ]
+}

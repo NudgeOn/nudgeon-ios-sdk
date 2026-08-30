@@ -87,7 +87,17 @@ $push_delivered 전송 + `onda.image_url` 리치 푸시 첨부를 자동 처리�
 ## 로드맵
 
 - **M1** ✅ init·identify·track·오프라인 큐
-- **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사·NSE 도달 (현재)
-- **M4** 데모 앱·계약 테스트·SPM/CocoaPods 배포
+- **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사·NSE 도달
+- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/OndaContractTests`)·데모 앱(`Examples/OndaDemo`) (현재) / ☐ SPM·CocoaPods 배포
+
+
+## 테스트
+
+```bash
+swift test   # 단위(16) + 계약(4 시나리오) = 17 test cases
+```
+
+- **계약 테스트** — `contract-tests/scenarios/*.json`(4플랫폼 공용 단일 출처)을 로드해
+  공개 코어 → 실제 HTTP → 목 서버(NWListener) 수신 페이로드를 블랙박스 검증. `Tests/OndaContractTests`.
 
 MIT License.
