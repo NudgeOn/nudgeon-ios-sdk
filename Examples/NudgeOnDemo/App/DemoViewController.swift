@@ -225,7 +225,7 @@ final class DemoViewController: UIViewController {
             "Calls are intentionally explicit so AppDelegate, token, notification, and deep-link wiring stay visible.",
             style: .body
         )
-        subtitle.textColor = .SECNUDGEONRyLabel
+        subtitle.textColor = .secondaryLabel
         let stack = UIStackView(arrangedSubviews: [title, subtitle])
         stack.axis = .vertical
         stack.spacing = 6
@@ -239,7 +239,7 @@ final class DemoViewController: UIViewController {
         stack.spacing = 10
         stack.isLayoutMarginsRelativeArrangement = true
         stack.layoutMargins = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-        stack.backgroundColor = .SECNUDGEONRySystemGroupedBackground
+        stack.backgroundColor = .secondarySystemGroupedBackground
         stack.layer.cornerRadius = 14
         return stack
     }
@@ -286,7 +286,7 @@ final class DemoViewController: UIViewController {
         )
         label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 0
-        label.textColor = .SECNUDGEONRyLabel
+        label.textColor = .secondaryLabel
         return label
     }
 }
