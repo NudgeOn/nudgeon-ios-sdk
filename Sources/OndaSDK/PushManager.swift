@@ -15,6 +15,7 @@ final class PushManager {
     private let optInKey = "onda.push.service_opt_in"
     private let tokenKey = "onda.push.last_token"
     private let tokenExtKey = "onda.push.last_token_external"
+    private let tokenPermKey = "onda.push.last_token_permission"
 
     init(config: OndaConfig, network: Network, defaults: UserDefaults = .standard) {
         self.config = config
@@ -46,29 +47,37 @@ final class PushManager {
         token.map { String(format: "%02x", $0) }.joined()
     }
 
-    /// 토큰 대사 판정 — 마지막 등록분과 토큰 또는 유저가 달라졌는지 (S-5 핵심 결정).
-    func needsRegistration(token: String, externalId: String?) -> Bool {
-        token != defaults.string(forKey: tokenKey) || externalId != defaults.string(forKey: tokenExtKey)
+    /// 마지막으로 서버에 등록한 토큰 (foreground 권한 재동기화 진입점 — R-08).
+    var cachedToken: String? { defaults.string(forKey: tokenKey) }
+
+    /// 토큰 대사 판정 — 마지막 등록분과 토큰·유저·OS 권한 중 하나라도 달라졌는지 (S-5/R-08 핵심 결정).
+    /// os_permission을 대사에 포함해 토큰 값이 불변이어도(설정 앱에서 알림 on/off) 권한 변경이
+    /// 서버에 반영되도록 한다 — 이전 구현은 토큰/유저만 비교해 권한 변경을 놓쳤다.
+    func needsRegistration(token: String, externalId: String?, osPermission: String) -> Bool {
+        token != defaults.string(forKey: tokenKey)
+            || externalId != defaults.string(forKey: tokenExtKey)
+            || osPermission != defaults.string(forKey: tokenPermKey)
     }
 
-    /// 등록 성공을 영속 — 이후 동일 토큰/유저는 no-op 대상이 된다.
-    func markRegistered(token: String, externalId: String?) {
+    /// 등록 성공을 영속 — 이후 동일 토큰/유저/권한은 no-op 대상이 된다.
+    func markRegistered(token: String, externalId: String?, osPermission: String) {
         defaults.set(token, forKey: tokenKey)
+        defaults.set(osPermission, forKey: tokenPermKey)
         if let ext = externalId { defaults.set(ext, forKey: tokenExtKey) }
         else { defaults.removeObject(forKey: tokenExtKey) }
     }
 
-    /// 새 토큰/유저 조합이 마지막 등록분과 다를 때만 서버 등록. 성공 시 영속.
-    /// 재실행 시 OS가 같은 토큰을 주면 no-op, 토큰이 바뀌었으면 자동 갱신된다.
+    /// 새 토큰/유저/권한 조합이 마지막 등록분과 다를 때만 서버 등록. 성공 시 영속.
+    /// 재실행 시 OS가 같은 토큰을 주면 no-op, 토큰·권한이 바뀌었으면 자동 갱신된다.
     func registerToken(_ token: String, externalId: String?, anonId: String, osPermission: String) {
-        guard needsRegistration(token: token, externalId: externalId) else {
-            OndaLog.info("push 토큰 변화 없음 — 등록 생략")
+        guard needsRegistration(token: token, externalId: externalId, osPermission: osPermission) else {
+            OndaLog.info("push 토큰·권한 변화 없음 — 등록 생략")
             return
         }
         network.registerToken(pushToken: token, externalId: externalId, anonId: anonId, osPermission: osPermission) { [self] ok in
             if ok {
-                markRegistered(token: token, externalId: externalId)
-                OndaLog.info("push 토큰 등록 완료")
+                markRegistered(token: token, externalId: externalId, osPermission: osPermission)
+                OndaLog.info("push 토큰 등록 완료 (권한=\(osPermission))")
             } else {
                 OndaLog.warn("push 토큰 등록 실패 — 다음 기회 재시도")
             }
@@ -79,6 +88,7 @@ final class PushManager {
     func clearTokenCache() {
         defaults.removeObject(forKey: tokenKey)
         defaults.removeObject(forKey: tokenExtKey)
+        defaults.removeObject(forKey: tokenPermKey)
     }
 
     // MARK: OS 권한

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 코어 오케스트레이터 — 식별자·큐·네트워크·플러시 타이머·푸시를 조율.
 /// 내부 직렬 큐에서 모든 상태 변경 수행 (공개 API 논블로킹).
@@ -46,6 +49,31 @@ final class OndaCore {
         }
         scheduleFlush()
         flush() // 이전 세션 잔존분 즉시 전송 시도
+        observeForeground() // 포그라운드 복귀 시 OS 권한 변경 재동기화 (R-08)
+    }
+
+    /// 앱 포그라운드 복귀를 관찰해 OS 알림 권한 변경을 서버에 재동기화한다 (R-08).
+    /// 사용자가 iOS 설정에서 알림을 끄면 토큰 값은 그대로라 자동 갱신 계기가 없다 —
+    /// 포그라운드마다 현재 권한을 읽어 마지막 등록분과 다르면 캐시된 토큰으로 재등록한다.
+    private func observeForeground() {
+#if canImport(UIKit)
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
+        ) { [weak self] _ in self?.resyncPushPermission() }
+#endif
+    }
+
+    /// 캐시된 토큰이 있으면 현재 OS 권한을 읽어 재등록(권한 대사에 포함되므로 변경 시에만 서버 호출).
+    func resyncPushPermission() {
+        work.async { [self] in
+            guard let token = push.cachedToken else { return } // 등록 이력 없으면 대상 아님
+            Task { [self] in
+                let perm = await push.currentOSPermission()
+                work.async { [self] in
+                    push.registerToken(token, externalId: identity.externalId, anonId: identity.anonId, osPermission: perm)
+                }
+            }
+        }
     }
 
     func identify(_ externalId: String) {

@@ -1,0 +1,134 @@
+name: OndaDemo
+options:
+  bundleIdPrefix: io.onda
+  deploymentTarget:
+    iOS: "15.0"
+  developmentLanguage: en
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ONDA_SDK_KEY: pk_sample_replace_me
+    ONDA_API_HOST: "http://localhost:8080"
+    ONDA_APP_GROUP: group.io.onda.demo
+
+packages:
+  OndaSDK:
+    path: ../..
+
+targets:
+  OndaDemo:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Onda Demo
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - remote-notification
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        CFBundleURLTypes:
+          - CFBundleURLName: io.onda.demo
+            CFBundleURLSchemes:
+              - ondademo
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+        OndaSDKKey: "$(ONDA_SDK_KEY)"
+        OndaAPIHost: "$(ONDA_API_HOST)"
+        OndaAppGroup: "$(ONDA_APP_GROUP)"
+    entitlements:
+      path: App/OndaDemo.entitlements
+      properties:
+        aps-environment: development
+        com.apple.security.application-groups:
+          - "$(ONDA_APP_GROUP)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.onda.demo
+        PRODUCT_NAME: OndaDemo
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+    dependencies:
+      - package: OndaSDK
+        product: OndaSDK
+      - target: OndaDemoNotificationService
+        embed: true
+
+  OndaDemoNotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NotificationServiceExtension
+    info:
+      path: NotificationServiceExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Onda Demo Notification Service
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        OndaAppGroup: "$(ONDA_APP_GROUP)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    entitlements:
+      path: NotificationServiceExtension/OndaDemoNotificationService.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - "$(ONDA_APP_GROUP)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.onda.demo.NotificationService
+        PRODUCT_NAME: OndaDemoNotificationService
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: OndaSDK
+        product: OndaNotificationService
+
+  OndaDemoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: OndaDemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.onda.demo.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  OndaDemo:
+    build:
+      targets:
+        OndaDemo: all
+    run:
+      config: Debug
+      executable: OndaDemo
+    test:
+      config: Debug
+      targets:
+        - OndaDemoTests
+    profile:
+      config: Release
+      executable: OndaDemo
+    analyze:
+      config: Debug
+    archive:
+      config: Release

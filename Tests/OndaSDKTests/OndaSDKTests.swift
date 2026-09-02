@@ -145,11 +145,22 @@ final class PushManagerTests: XCTestCase {
 
     func testTokenReconciliation() {
         let (pm, _) = make()
-        XCTAssertTrue(pm.needsRegistration(token: "t1", externalId: nil), "최초 등록 필요")
-        pm.markRegistered(token: "t1", externalId: nil)
-        XCTAssertFalse(pm.needsRegistration(token: "t1", externalId: nil), "동일 토큰/유저 → 생략")
-        XCTAssertTrue(pm.needsRegistration(token: "t2", externalId: nil), "토큰 변경 → 재등록 (S-5)")
-        XCTAssertTrue(pm.needsRegistration(token: "t1", externalId: "user-1"), "유저 변경 → 재등록 (S-4)")
+        XCTAssertTrue(pm.needsRegistration(token: "t1", externalId: nil, osPermission: "authorized"), "최초 등록 필요")
+        pm.markRegistered(token: "t1", externalId: nil, osPermission: "authorized")
+        XCTAssertFalse(pm.needsRegistration(token: "t1", externalId: nil, osPermission: "authorized"), "동일 토큰/유저/권한 → 생략")
+        XCTAssertTrue(pm.needsRegistration(token: "t2", externalId: nil, osPermission: "authorized"), "토큰 변경 → 재등록 (S-5)")
+        XCTAssertTrue(pm.needsRegistration(token: "t1", externalId: "user-1", osPermission: "authorized"), "유저 변경 → 재등록 (S-4)")
+    }
+
+    /// R-08: 토큰·유저 불변이어도 OS 권한이 바뀌면 재등록 필요 (설정 앱에서 알림 off 등).
+    func testPermissionChangeTriggersRegistration() {
+        let (pm, _) = make()
+        pm.markRegistered(token: "t1", externalId: "user-1", osPermission: "authorized")
+        XCTAssertFalse(pm.needsRegistration(token: "t1", externalId: "user-1", osPermission: "authorized"), "권한 동일 → 생략")
+        XCTAssertTrue(pm.needsRegistration(token: "t1", externalId: "user-1", osPermission: "denied"),
+                      "토큰·유저 불변이나 권한 변경 → 재등록 (R-08)")
+        pm.markRegistered(token: "t1", externalId: "user-1", osPermission: "denied")
+        XCTAssertFalse(pm.needsRegistration(token: "t1", externalId: "user-1", osPermission: "denied"), "갱신 후 생략")
     }
 
     func testSubscriptionStateComposition() {
@@ -158,7 +169,7 @@ final class PushManagerTests: XCTestCase {
         XCTAssertTrue(s.serviceOptIn)
         XCTAssertEqual(s.osPermission, "authorized")
         XCTAssertFalse(s.tokenRegistered, "등록 전 false")
-        pm.markRegistered(token: "t", externalId: nil)
+        pm.markRegistered(token: "t", externalId: nil, osPermission: "authorized")
         XCTAssertTrue(pm.subscriptionState(osPermission: "authorized").tokenRegistered)
     }
 }
