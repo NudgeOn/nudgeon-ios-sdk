@@ -42,8 +42,9 @@ final class OndaCore {
 
     func start() {
         OndaLog.info("Onda 초기화: host=\(config.apiHost)")
-        // NSE(별도 프로세스)가 도달 이벤트를 보낼 수 있도록 설정을 app group에 미러링.
-        SharedConfig.mirror(config: config, deviceId: identity.deviceId)
+        // NSE(별도 프로세스)가 도달 이벤트를 보낼 수 있도록 설정·식별자를 app group에 미러링.
+        SharedConfig.mirror(config: config, deviceId: identity.deviceId,
+                            anonId: identity.anonId, externalId: identity.externalId)
         if config.autoTrackSessions {
             track("session_start", properties: [:])
         }
@@ -79,6 +80,7 @@ final class OndaCore {
     func identify(_ externalId: String) {
         work.async { [self] in
             identity.externalId = externalId
+            mirrorIdentity() // NSE 도달 귀속을 현재 유저로
             network.sendIdentify(externalId: externalId, anonId: identity.anonId, attributes: [:]) { ok in
                 OndaLog.info("identify \(ok ? "성공" : "재시도 대기")")
             }
@@ -90,8 +92,14 @@ final class OndaCore {
             flushSync() // 이전 유저 이벤트를 먼저 비운다
             identity.reset()
             push.clearTokenCache() // 다음 토큰을 새 유저로 재등록 (이전 유저 미발송 — S-4)
+            mirrorIdentity() // 이전 유저 external_id가 NSE에 남지 않도록
             OndaLog.info("reset 완료 — 새 anon_id 발급")
         }
+    }
+
+    /// 현재 식별자를 app group에 반영 (identify/reset 직후 — NSE $push_delivered 귀속용).
+    private func mirrorIdentity() {
+        SharedConfig.mirrorIdentity(appGroup: config.appGroup, anonId: identity.anonId, externalId: identity.externalId)
     }
 
     func setUserAttributes(_ attrs: [String: OndaValue]) {

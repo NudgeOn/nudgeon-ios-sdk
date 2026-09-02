@@ -16,22 +16,27 @@ final class Network {
     func sendTrack(_ items: [EventQueue.Item], platform: String = "ios",
                    completion: @escaping (Bool) -> Void) {
         guard !items.isEmpty else { completion(true); return }
+        post(path: "/v1/track", body: trackBody(items, platform: platform), completion: completion)
+    }
+
+    /// /v1/track 요청 본문 (PRD-01 6.1). 서버 스키마가 strict라 빈 anon_id는 키 자체를 생략한다
+    /// (anon_id는 UUID 또는 부재만 허용 — external_id만 있는 이벤트를 위해).
+    func trackBody(_ items: [EventQueue.Item], platform: String = "ios") -> [String: Any] {
         let batch: [[String: Any]] = items.map { item in
             var e: [String: Any] = [
                 "insert_id": item.insertId,
-                "anon_id": item.anonId,
                 "event": item.event,
                 "client_ts": item.clientTs,
                 "properties": item.properties.mapValues { $0.value },
             ]
+            if !item.anonId.isEmpty { e["anon_id"] = item.anonId }
             if let ext = item.externalId { e["external_id"] = ext }
             return e
         }
-        let body: [String: Any] = [
+        return [
             "batch": batch,
             "device": ["device_id": deviceId, "platform": platform],
         ]
-        post(path: "/v1/track", body: body, completion: completion)
     }
 
     /// identify 전송 (PRD-01 6.1 /v1/identify).

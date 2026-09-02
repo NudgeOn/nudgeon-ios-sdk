@@ -77,7 +77,7 @@ xcrun simctl push booted io.onda.demo Examples/OndaDemo/Fixtures/sample-push.apn
 - `identify`와 `reset`은 비동기 처리되고 `track`은 현재 identity를 즉시 읽는다. attribution이 중요한 이벤트는 identify 직후 즉시 보내지 말고, 현 SDK에 순서 보장 API가 추가되기 전까지 이 경계를 고려해야 한다.
 - 현재 `setPushSubscription`과 `reset`은 로컬 상태/캐시만 바꾸며 서버 unsubscribe 또는 device detach 성공을 보장하지 않는다. 샘플 UI도 이를 로컬 상태로 표시한다.
 - Simulator의 `simctl push`는 payload 파싱, callback, deep-link UI를 확인하는 로컬 테스트다. 실제 APNs credential, 기기 token, provider delivery, 백엔드 수집을 증명하지 않는다.
-- **알려진 계약 제한:** 현재 `OndaDelivery`의 `$push_delivered` 이벤트는 빈 `anon_id`와 `external_id` 없음으로 전송되어 현재 서버 식별자 스키마에서 `400`이 된다. NSE/App Group wiring과 rich-push 코드는 예제로 포함했지만, 이 문제가 수정되기 전에는 실제 delivered 집계 E2E 성공으로 판단하면 안 된다.
+- `$push_delivered`는 코어가 App Group에 미러링한 `anon_id`/`external_id`/`device_id`로 전송된다. 앱을 한 번 실행해 SDK가 초기화된 뒤에야 NSE가 식별자를 읽을 수 있으며, 그 전에는 경고 로그를 남기고 전송을 건너뛴다. 앱과 NSE의 App Group 값이 다르면 같은 이유로 도달 집계가 되지 않는다.
 
 ## 테스트
 

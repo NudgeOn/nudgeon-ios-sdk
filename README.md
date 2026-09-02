@@ -3,7 +3,7 @@
 Onda 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
 [플랫폼](../onda-platform) · 공개 인터페이스 명세: `onda-platform/docs/prd/PRD-01A`.
 
-> 상태: **M2 코어 구현** — init · identify · track · 오프라인 큐 · 푸시 등록 · 리스너(콜드스타트 버퍼) · NSE 연결. 실제 delivered 수집은 아래 계약 제한이 남아 있다.
+> 상태: **M2 코어 완성** — init · identify · track · 오프라인 큐 · 푸시 등록 · 리스너(콜드스타트 버퍼) · NSE 도달($push_delivered).
 
 ## 설치 (Swift Package Manager)
 
@@ -42,7 +42,7 @@ open Examples/OndaDemo/OndaDemo.xcodeproj
 ```
 
 기본값은 안전한 `pk_sample_replace_me`와 로컬 API host다. 실제 key/host, App Group, signing 설정과
-현재 delivered 집계 계약 제한은 [샘플 README](Examples/OndaDemo/README.md)를 먼저 확인한다.
+실기기 푸시 테스트 절차는 [샘플 README](Examples/OndaDemo/README.md)를 먼저 확인한다.
 
 ## AppDelegate 연동 (수동 — 기본, 스위즐링 미채택)
 
@@ -63,7 +63,7 @@ func userNotificationCenter(_ c: UNUserNotificationCenter,
 }
 ```
 
-## Notification Service Extension (delivered 집계 계약 제한 있음)
+## 도달 트래킹 (NSE — iOS 도달 지표 필수)
 
 App Group을 코어 설정과 NSE에 공유하고, NSE는 베이스 클래스만 상속한다:
 
@@ -74,15 +74,16 @@ class NotificationService: OndaNotificationServiceBase {
     override var appGroup: String? { "group.io.onda.myapp" }
 }
 ```
-`onda.image_url` 리치 푸시 첨부와 `$push_delivered` 전송 시도를 처리한다. 다만 현재
-`OndaDelivery`가 빈 `anon_id`와 `external_id` 없이 보내 서버 식별자 스키마에서 `400`이 되므로,
-식별자 계약을 고치기 전까지 delivered 집계 E2E는 완료로 보지 않는다.
+`$push_delivered` 전송 + `onda.image_url` 리치 푸시 첨부를 자동 처리한다.
+코어가 App Group에 설정과 함께 `anon_id`/`external_id`/`device_id`를 미러링(identify·reset 시 갱신)하고,
+NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id` 필수)를 만족하는 이벤트만 보낸다.
+미러링이 없으면(코어 초기화 전, App Group 불일치) 경고 로그를 남기고 전송을 건너뛴다.
 
 ## 아키텍처 (PRD-01A 1.1)
 
 - **네이티브 코어가 유일한 상태 보유자** — 오프라인 큐(파일 영속), anon/device ID 영속,
   배치 플러시, 재시도. 브리지(RN/Flutter)는 무상태 전달만.
-- `OndaSDK` (코어) + `OndaNotificationService` (NSE — delivered 전송 시도·rich push, 위 계약 제한 참고).
+- `OndaSDK` (코어) + `OndaNotificationService` (NSE — 도달 트래킹·rich push).
 
 ## 모듈
 
@@ -96,19 +97,19 @@ class NotificationService: OndaNotificationServiceBase {
 | `PushPayload.swift` | APNs userInfo 파싱·PushPermissionResult·SubscriptionState |
 | `PushManager.swift` | 권한·토큰 대사(S-5)·구독 상태 |
 | `EventBus.swift` | pushOpened/Received 리스너·콜드스타트 20건 버퍼·재생 |
-| `SharedConfig.swift`·`OndaDelivery.swift` | App Group 미러링·NSE delivered 리포터(현재 식별자 계약 제한) |
+| `SharedConfig.swift`·`OndaDelivery.swift` | App Group 미러링(설정+식별자)·NSE 도달 리포터 |
 
 ## 로드맵
 
 - **M1** ✅ init·identify·track·오프라인 큐
-- **M2** ◐ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사·NSE/rich push 연결 구현, delivered 수집 계약 수정 필요
+- **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사(권한 포함)·NSE 도달·rich push
 - **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/OndaContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/OndaDemo`) (현재) / ☐ SPM·CocoaPods 배포
 
 
 ## 테스트
 
 ```bash
-swift test   # 단위(16) + 계약(4 시나리오) = 17 test cases
+swift test   # 단위(25) + 계약(4 시나리오) = 26 test cases
 ```
 
 - **계약 테스트** — `contract-tests/scenarios/*.json`(4플랫폼 공용 단일 출처)을 로드해
