@@ -113,18 +113,26 @@ final class OndaCore {
         }
     }
 
+    /// 이벤트 적재. insert_id·client_ts는 호출 시점에 확정하고, 식별자 귀속(anon/external)은
+    /// identify/reset과 같은 직렬 큐에서 읽는다 — `identify(); track()` 호출 순서가 곧 귀속 순서가 되며
+    /// (호출 스레드에서 식별자를 읽던 이전 구현은 identify 직후 track이 이전 유저로 귀속되는 경합이 있었다).
     func track(_ name: String, properties: [String: Any]) {
-        let item = EventQueue.Item(
-            insertId: UUID().uuidString.lowercased(),
-            event: name,
-            properties: properties.mapValues { AnyCodable($0) },
-            clientTs: ISO8601DateFormatter().string(from: Date()),
-            anonId: identity.anonId,
-            externalId: identity.externalId
-        )
-        queue.enqueue(item)
-        if queue.count >= config.flushBatchSize {
-            flush()
+        let insertId = UUID().uuidString.lowercased()
+        let clientTs = ISO8601DateFormatter().string(from: Date())
+        let props = properties.mapValues { AnyCodable($0) }
+        work.async { [self] in
+            let item = EventQueue.Item(
+                insertId: insertId,
+                event: name,
+                properties: props,
+                clientTs: clientTs,
+                anonId: identity.anonId,
+                externalId: identity.externalId
+            )
+            queue.enqueue(item)
+            if queue.count >= config.flushBatchSize {
+                flushSync()
+            }
         }
     }
 

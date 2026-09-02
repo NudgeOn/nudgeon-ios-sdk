@@ -74,7 +74,7 @@ xcrun simctl push booted io.onda.demo Examples/OndaDemo/Fixtures/sample-push.apn
 - `track`은 로컬 큐 적재이고 `flush`는 전송 요청이다. 공개 API에 완료 콜백이 없으므로 화면은 서버 수신 성공을 표시하지 않는다. 서버의 `202`도 receipt/outbox 영속 확인이지 최종 전달 확인이 아니다.
 - `registerForPush()` 반환값은 OS 권한 결과다. APNs token 발급이나 Onda 서버 token 등록 성공을 뜻하지 않으므로 `getPushSubscription()`을 별도로 새로고침한다.
 - 현재 `autoRegisterPushToken` 설정은 SDK 내부에서 사용되지 않는다. 샘플은 사용자 버튼으로 권한/등록 흐름을 시작한다.
-- `identify`와 `reset`은 비동기 처리되고 `track`은 현재 identity를 즉시 읽는다. attribution이 중요한 이벤트는 identify 직후 즉시 보내지 말고, 현 SDK에 순서 보장 API가 추가되기 전까지 이 경계를 고려해야 한다.
+- `identify`·`reset`·`track`은 모두 코어 직렬 큐에서 처리되므로 호출 순서가 곧 귀속 순서다. `identify` 직후 `track`은 새 유저로, `reset` 직후 `track`은 익명으로 귀속된다.
 - 현재 `setPushSubscription`과 `reset`은 로컬 상태/캐시만 바꾸며 서버 unsubscribe 또는 device detach 성공을 보장하지 않는다. 샘플 UI도 이를 로컬 상태로 표시한다.
 - Simulator의 `simctl push`는 payload 파싱, callback, deep-link UI를 확인하는 로컬 테스트다. 실제 APNs credential, 기기 token, provider delivery, 백엔드 수집을 증명하지 않는다.
 - `$push_delivered`는 코어가 App Group에 미러링한 `anon_id`/`external_id`/`device_id`로 전송된다. 앱을 한 번 실행해 SDK가 초기화된 뒤에야 NSE가 식별자를 읽을 수 있으며, 그 전에는 경고 로그를 남기고 전송을 건너뛴다. 앱과 NSE의 App Group 값이 다르면 같은 이유로 도달 집계가 되지 않는다.
