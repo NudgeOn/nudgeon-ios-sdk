@@ -3,6 +3,6 @@
 /Packages
 xcuserdata/
 *.xcodeproj
-!Examples/OndaDemo/OndaDemo.xcodeproj/
+!Examples/NudgeOnDemo/NudgeOnDemo.xcodeproj/
 .swiftpm
 DerivedData/

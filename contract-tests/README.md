@@ -1,10 +1,10 @@
-# Onda SDK 계약 테스트 (Contract Tests)
+# NudgeOn SDK 계약 테스트 (Contract Tests)
 
 `scenarios/*.json` = **4개 플랫폼 공용 단일 출처** (PRD-01A "API 완전 동형"의 기계 검증).
 각 시나리오는 *공개 API 호출 시퀀스 → 목 서버가 수신해야 할 HTTP 페이로드*를 선언한다.
 iOS·Android·RN·Flutter 러너가 동일 JSON을 로드해 각자의 목 서버 상대로 실행한다.
 
-> 현재 iOS 러너 구현 완료(`Tests/OndaContractTests`, `swift test`로 실행).
+> 현재 iOS 러너 구현 완료(`Tests/NudgeOnContractTests`, `swift test`로 실행).
 > Android/RN/Flutter 러너는 이 디렉터리를 공유(서브모듈/복사)해 후속 구현.
 
 ## 시나리오 스키마

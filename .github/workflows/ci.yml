@@ -26,18 +26,18 @@ jobs:
         run: swift test
 
   demo-app:
-    name: OndaDemo (iOS Simulator)
+    name: NudgeOnDemo (iOS Simulator)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: xcodebuild -version
-      - name: Build OndaDemo + NSE for iOS Simulator
+      - name: Build NudgeOnDemo + NSE for iOS Simulator
         run: |
           set -o pipefail
           xcodebuild \
-            -project Examples/OndaDemo/OndaDemo.xcodeproj \
-            -scheme OndaDemo \
+            -project Examples/NudgeOnDemo/NudgeOnDemo.xcodeproj \
+            -scheme NudgeOnDemo \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \

@@ -1,0 +1,134 @@
+name: NudgeOnDemo
+options:
+  bundleIdPrefix: io.nudgeon
+  deploymentTarget:
+    iOS: "15.0"
+  developmentLanguage: en
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    NUDGEON_SDK_KEY: pk_sample_replace_me
+    NUDGEON_API_HOST: "http://localhost:8080"
+    NUDGEON_APP_GROUP: group.io.nudgeon.demo
+
+packages:
+  NudgeOnSDK:
+    path: ../..
+
+targets:
+  NudgeOnDemo:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: NudgeOn Demo
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - remote-notification
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        CFBundleURLTypes:
+          - CFBundleURLName: io.nudgeon.demo
+            CFBundleURLSchemes:
+              - nudgeondemo
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+        NudgeOnSDKKey: "$(NUDGEON_SDK_KEY)"
+        NudgeOnAPIHost: "$(NUDGEON_API_HOST)"
+        NudgeOnAppGroup: "$(NUDGEON_APP_GROUP)"
+    entitlements:
+      path: App/NudgeOnDemo.entitlements
+      properties:
+        aps-environment: development
+        com.apple.security.application-groups:
+          - "$(NUDGEON_APP_GROUP)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.nudgeon.demo
+        PRODUCT_NAME: NudgeOnDemo
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+    dependencies:
+      - package: NudgeOnSDK
+        product: NudgeOnSDK
+      - target: NudgeOnDemoNotificationService
+        embed: true
+
+  NudgeOnDemoNotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NotificationServiceExtension
+    info:
+      path: NotificationServiceExtension/Info.plist
+      properties:
+        CFBundleDisplayName: NudgeOn Demo Notification Service
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NudgeOnAppGroup: "$(NUDGEON_APP_GROUP)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    entitlements:
+      path: NotificationServiceExtension/NudgeOnDemoNotificationService.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - "$(NUDGEON_APP_GROUP)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.nudgeon.demo.NotificationService
+        PRODUCT_NAME: NudgeOnDemoNotificationService
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: NudgeOnSDK
+        product: NudgeOnNotificationService
+
+  NudgeOnDemoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: NudgeOnDemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.nudgeon.demo.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  NudgeOnDemo:
+    build:
+      targets:
+        NudgeOnDemo: all
+    run:
+      config: Debug
+      executable: NudgeOnDemo
+    test:
+      config: Debug
+      targets:
+        - NudgeOnDemoTests
+    profile:
+      config: Release
+      executable: NudgeOnDemo
+    analyze:
+      config: Debug
+    archive:
+      config: Release

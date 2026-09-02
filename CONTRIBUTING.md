@@ -1,6 +1,6 @@
-# Contributing to Onda
+# Contributing to NudgeOn
 
-Thank you for contributing to Onda.
+Thank you for contributing to NudgeOn.
 
 ## Before opening a pull request
 

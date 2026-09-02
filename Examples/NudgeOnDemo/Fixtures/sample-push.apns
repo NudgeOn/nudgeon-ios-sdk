@@ -1,0 +1,18 @@
+{
+  "aps": {
+    "alert": {
+      "title": "NudgeOn sample push",
+      "body": "Tap to exercise the UIKit deep-link lifecycle."
+    },
+    "sound": "default",
+    "mutable-content": 1
+  },
+  "nudgeon": {
+    "message_id": "sample-message-001",
+    "campaign_id": "sample-campaign-001",
+    "deep_link": "nudgeondemo://product/P-1",
+    "data": {
+      "source": "simctl"
+    }
+  }
+}
