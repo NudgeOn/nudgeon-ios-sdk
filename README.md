@@ -8,7 +8,7 @@ NudgeOn 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SD
 ## 설치 (Swift Package Manager)
 
 ```swift
-.package(url: "https://github.com/nudgeon/nudgeon-ios-sdk.git", from: "0.1.0")
+.package(url: "https://github.com/NudgeOn/nudgeon-ios-sdk.git", from: "0.1.0")
 ```
 
 ## 빠른 시작
