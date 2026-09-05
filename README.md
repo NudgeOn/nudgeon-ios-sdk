@@ -1,9 +1,28 @@
 # NudgeOn iOS SDK
 
-NudgeOn 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
-[플랫폼](../nudgeon-platform) · 공개 인터페이스 명세: `nudgeon-platform/docs/prd/PRD-01A`.
+[![SPM](https://img.shields.io/github/v/release/NudgeOn/nudgeon-ios-sdk?label=Swift%20Package&sort=semver)](https://github.com/NudgeOn/nudgeon-ios-sdk/releases)
+[![CI](https://github.com/NudgeOn/nudgeon-ios-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/NudgeOn/nudgeon-ios-sdk/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)
 
-> 상태: **M2 코어 완성** — init · identify · track · 오프라인 큐 · 푸시 등록 · 리스너(콜드스타트 버퍼) · NSE 도달($push_delivered).
+[NudgeOn](https://nudgeon.io) 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
+이벤트를 수집하고 푸시를 수신합니다. Android SDK와 API가 동형입니다.
+
+> ⚠️ **알파입니다. 프로덕션에 쓰지 마세요.**
+> 코어 경로(init · identify · track · 오프라인 큐 · 푸시 등록 · 리스너 · NSE 도달)는 동작하지만,
+> 아래가 아직 완료되지 않았습니다.
+>
+> - **`message_id` 연결** — 서버·iOS·Android가 푸시 payload에서 식별자를 읽는 방식이 아직 통일되지 않았습니다. 발송·도달·리포트 간 조인이 보장되지 않습니다
+> - **수신 동의 · 로그아웃 · 토큰 소유권** 서버 동기화
+> - **실기기 · 실공급자 발송 검증**
+>
+> API와 스키마는 예고 없이 바뀔 수 있습니다. 진행 상황은
+> [출시 체크리스트](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)를 보세요.
+
+- **플랫폼 저장소** — [NudgeOn/nudgeon-platform](https://github.com/NudgeOn/nudgeon-platform)
+- **API 가이드** — [docs-public/API.md](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/API.md)
+- **푸시 계약** — [docs-public/PUSH-CONTRACT.md](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/PUSH-CONTRACT.md)
+- **개발자센터** — [nudgeon.io](https://nudgeon.io)
 
 ## 설치 (Swift Package Manager)
 
@@ -79,7 +98,7 @@ class NotificationService: NudgeOnNotificationServiceBase {
 NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id` 필수)를 만족하는 이벤트만 보낸다.
 미러링이 없으면(코어 초기화 전, App Group 불일치) 경고 로그를 남기고 전송을 건너뛴다.
 
-## 아키텍처 (PRD-01A 1.1)
+## 아키텍처
 
 - **네이티브 코어가 유일한 상태 보유자** — 오프라인 큐(파일 영속), anon/device ID 영속,
   배치 플러시, 재시도. 브리지(RN/Flutter)는 무상태 전달만.
@@ -115,4 +134,12 @@ swift test   # 단위(25) + 계약(4 시나리오) = 26 test cases
 - **계약 테스트** — `contract-tests/scenarios/*.json`(4플랫폼 공용 단일 출처)을 로드해
   공개 코어 → 실제 HTTP → 목 서버(NWListener) 수신 페이로드를 블랙박스 검증. `Tests/NudgeOnContractTests`.
 
-Licensed under the [Apache License 2.0](LICENSE).
+## 기여
+
+버그 제보와 PR을 환영합니다. [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+보안 문제는 공개 이슈 대신 `security@nudgeon.io`로 알려주세요.
+
+## 라이선스
+
+[Apache License 2.0](LICENSE). NudgeOn 이름·워드마크·로고는 이 허여 대상이 아닙니다 —
+[상표 정책](TRADEMARKS.md)을 따릅니다.
