@@ -4,5 +4,7 @@
 xcuserdata/
 *.xcodeproj
 !Examples/NudgeOnDemo/NudgeOnDemo.xcodeproj/
+!Examples/NudgeOnQuickstart/NudgeOnQuickstart.xcodeproj/
 .swiftpm
 DerivedData/
+Examples/*/build/

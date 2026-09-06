@@ -1,0 +1,64 @@
+# 게시된 Swift Package(0.1.0)를 원격에서 받아 쓰는 최소 예제.
+# 로컬 소스(../..)를 참조하지 않는다 — 게시본이 실제로 통합되는지 검증하는 것이 목적이다.
+name: NudgeOnQuickstart
+options:
+  bundleIdPrefix: io.nudgeon
+  deploymentTarget:
+    iOS: "15.0"
+  developmentLanguage: en
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    NUDGEON_SDK_KEY: pk_replace_me
+    NUDGEON_API_HOST: "http://localhost:8080"
+
+packages:
+  NudgeOnSDK:
+    url: https://github.com/NudgeOn/nudgeon-ios-sdk.git
+    from: 0.1.0
+
+targets:
+  NudgeOnQuickstart:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: NudgeOn Quickstart
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+        NudgeOnSDKKey: "$(NUDGEON_SDK_KEY)"
+        NudgeOnAPIHost: "$(NUDGEON_API_HOST)"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.nudgeon.quickstart
+        PRODUCT_NAME: NudgeOnQuickstart
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+    dependencies:
+      - package: NudgeOnSDK
+        product: NudgeOnSDK
+
+schemes:
+  NudgeOnQuickstart:
+    build:
+      targets:
+        NudgeOnQuickstart: all
+    run:
+      config: Debug
+      executable: NudgeOnQuickstart
+    archive:
+      config: Release
