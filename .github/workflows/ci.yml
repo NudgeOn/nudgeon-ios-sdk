@@ -42,3 +42,39 @@ jobs:
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  quickstart:
+    name: Quickstart (게시본 소비)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version
+      # Examples/NudgeOnQuickstart 는 로컬 소스가 아니라 게시된 Swift Package(0.1.0)를
+      # 원격에서 받는다. 게시본이 실제로 앱에 통합 가능한지 계속 검증한다.
+      - name: 원격 패키지 참조인지 확인
+        run: |
+          set -euo pipefail
+          PBX=Examples/NudgeOnQuickstart/NudgeOnQuickstart.xcodeproj/project.pbxproj
+          grep -q 'repositoryURL = "https://github.com/NudgeOn/nudgeon-ios-sdk.git"' "$PBX" \
+            || { echo "::error::원격 패키지 참조가 없습니다"; exit 1; }
+          if grep -q 'XCLocalSwiftPackageReference' "$PBX"; then
+            echo "::error::로컬 패키지 참조가 있습니다. 게시본 검증이 무의미해집니다"; exit 1
+          fi
+          echo "원격 참조 확인"
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Examples/NudgeOnQuickstart/NudgeOnQuickstart.xcodeproj \
+            -scheme NudgeOnQuickstart \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/QuickstartDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+      - name: 해석된 버전 확인
+        run: |
+          set -euo pipefail
+          R=Examples/NudgeOnQuickstart/NudgeOnQuickstart.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          cat "$R"
+          grep -q 'nudgeon-ios-sdk' "$R" || { echo "::error::SDK가 해석되지 않았습니다"; exit 1; }
