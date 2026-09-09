@@ -15,6 +15,7 @@ final class NudgeOnCore {
     private let work = DispatchQueue(label: "io.nudgeon.core")
     private var flushTimer: DispatchSourceTimer?
     private var flushing = false
+    private var identifying = false // identify 전송 중 — 재시도 중복 방지
 
     /// 지정 이니셜라이저 — 의존성 주입(계약 테스트 하네스가 격리 인스턴스 구성에 사용).
     init(config: NudgeOnConfig, identity: Identity, queue: EventQueue, network: Network,
@@ -49,7 +50,7 @@ final class NudgeOnCore {
             track("session_start", properties: [:])
         }
         scheduleFlush()
-        flush() // 이전 세션 잔존분 즉시 전송 시도
+        flush() // 이전 세션 잔존분(이벤트·미전송 identify) 즉시 전송 시도
         observeForeground() // 포그라운드 복귀 시 OS 권한 변경 재동기화 (R-08)
     }
 
@@ -60,7 +61,10 @@ final class NudgeOnCore {
 #if canImport(UIKit)
         NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
-        ) { [weak self] _ in self?.resyncPushPermission() }
+        ) { [weak self] _ in
+            self?.resyncPushPermission()
+            self?.flush() // 미전송 identify·이벤트 재시도
+        }
 #endif
     }
 
@@ -77,20 +81,39 @@ final class NudgeOnCore {
         }
     }
 
+    /// 식별. 서버 반영 전에는 pending 마커를 영속해 두고, 실패하면 다음 flush(타이머·포그라운드·앱 재시작)에서
+    /// 같은 (external_id, anon_id)로 재전송한다 — anon 이벤트가 그 유저에 묶이는 것은 이 호출이 서버에 닿아야 한다.
     func identify(_ externalId: String) {
         work.async { [self] in
             identity.externalId = externalId
+            identity.markIdentifyPending(externalId: externalId, anonId: identity.anonId)
             mirrorIdentity() // NSE 도달 귀속을 현재 유저로
-            network.sendIdentify(externalId: externalId, anonId: identity.anonId, attributes: [:]) { ok in
-                NudgeOnLog.info("identify \(ok ? "성공" : "재시도 대기")")
+            sendPendingIdentify()
+        }
+    }
+
+    /// 대기 중 identify를 전송한다(work 큐에서 호출). 전송 중이면 겹치지 않는다.
+    private func sendPendingIdentify() {
+        guard !identifying, let pending = identity.pendingIdentify else { return }
+        identifying = true
+        network.sendIdentify(externalId: pending.externalId, anonId: pending.anonId, attributes: [:]) { [self] ok in
+            work.async {
+                identifying = false
+                if ok {
+                    identity.clearIdentifyPending(externalId: pending.externalId, anonId: pending.anonId)
+                    NudgeOnLog.info("identify 성공")
+                    if identity.pendingIdentify != nil { sendPendingIdentify() } // 전송 중 바뀐 유저
+                } else {
+                    NudgeOnLog.warn("identify 실패 — 다음 flush에서 재시도")
+                }
             }
         }
     }
 
     func reset() {
         work.async { [self] in
-            flushSync() // 이전 유저 이벤트를 먼저 비운다
-            identity.reset()
+            flushSync() // 이전 유저 이벤트(와 미전송 identify)를 먼저 비운다 — 마지막 1회 시도
+            identity.reset() // 이전 유저의 pending identify는 여기서 버린다(새 anon을 그 유저에 묶지 않는다)
             push.clearTokenCache() // 다음 토큰을 새 유저로 재등록 (이전 유저 미발송 — S-4)
             mirrorIdentity() // 이전 유저 external_id가 NSE에 남지 않도록
             NudgeOnLog.info("reset 완료 — 새 anon_id 발급")
@@ -197,6 +220,7 @@ final class NudgeOnCore {
     // MARK: 내부
 
     private func flushSync() {
+        sendPendingIdentify() // 실패했던 identify를 이벤트보다 먼저 — 귀속이 먼저 서버에 닿게
         guard !flushing else { return }
         let batch = queue.peek(config.flushBatchSize)
         guard !batch.isEmpty else { return }
