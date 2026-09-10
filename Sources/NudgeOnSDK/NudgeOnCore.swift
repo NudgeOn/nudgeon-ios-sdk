@@ -11,6 +11,7 @@ final class NudgeOnCore {
     private let queue: EventQueue
     private let network: Network
     private let push: PushManager
+    private let seen: SeenMessages
     let bus: EventBus
     private let work = DispatchQueue(label: "io.nudgeon.core")
     private var flushTimer: DispatchSourceTimer?
@@ -19,13 +20,14 @@ final class NudgeOnCore {
 
     /// 지정 이니셜라이저 — 의존성 주입(계약 테스트 하네스가 격리 인스턴스 구성에 사용).
     init(config: NudgeOnConfig, identity: Identity, queue: EventQueue, network: Network,
-         push: PushManager, bus: EventBus = EventBus()) {
+         push: PushManager, bus: EventBus = EventBus(), seen: SeenMessages = SeenMessages()) {
         self.config = config
         self.identity = identity
         self.queue = queue
         self.network = network
         self.push = push
         self.bus = bus
+        self.seen = seen
         NudgeOnLog.level = config.logLevel
     }
 
@@ -204,6 +206,11 @@ final class NudgeOnCore {
             track("$push_opened", properties: pushProps(payload))
             bus.emitOpened(payload)
         } else {
+            // 같은 message_id의 재수신(서버 at-least-once 창)은 여기서 접는다 — 이벤트도 리스너도 두 번 가지 않는다.
+            guard seen.firstTime(payload.messageId) else {
+                NudgeOnLog.info("중복 수신 접음: message_id=\(payload.messageId)")
+                return true
+            }
             track("$push_received", properties: pushProps(payload))
             bus.emitReceived(payload)
         }
