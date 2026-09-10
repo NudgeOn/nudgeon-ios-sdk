@@ -202,6 +202,8 @@ final class NudgeOnCore {
     @discardableResult
     func handleRemoteNotification(_ userInfo: [AnyHashable: Any], opened: Bool) -> Bool {
         guard let payload = PushPayload.parse(userInfo) else { return false }
+        // 무음(백그라운드) 푸시: 앱 삭제 감지용 ping — 표시·수신 이벤트·리스너 통지 없이 소비. NudgeOn 메시지이므로 true.
+        if payload.silent { return true }
         if opened {
             track("$push_opened", properties: pushProps(payload))
             bus.emitOpened(payload)
