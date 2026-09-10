@@ -8,31 +8,42 @@ public struct PushPayload: Equatable {
     public let title: String
     public let body: String
     public let deepLink: String?
+    /// 리치 알림 이미지 URL (`nudgeon.image_url`). NSE가 첨부한다 — 앱은 미리보기 등에 쓸 수 있다.
+    public let imageUrl: String?
     /// 커스텀 데이터 (문자열로 평탄화 — 브리지 직렬화 규칙, PRD-01A 4장).
     public let data: [String: String]
+    /// 무음(백그라운드) 푸시 — `aps.content-available=1`이고 alert이 없다. 사용자 미노출·수신 이벤트 없음(앱 삭제 감지 ping).
+    public let silent: Bool
 
     public init(messageId: String, campaignId: String? = nil, journeyId: String? = nil,
-                title: String, body: String, deepLink: String? = nil, data: [String: String] = [:]) {
+                title: String, body: String, deepLink: String? = nil, imageUrl: String? = nil,
+                data: [String: String] = [:], silent: Bool = false) {
         self.messageId = messageId
         self.campaignId = campaignId
         self.journeyId = journeyId
         self.title = title
         self.body = body
         self.deepLink = deepLink
+        self.imageUrl = imageUrl
         self.data = data
+        self.silent = silent
     }
 
     /// APNs `userInfo`에서 파싱. NudgeOn 발송 규약:
     /// ```
-    /// { "aps": { "alert": { "title": .., "body": .. } },
-    ///   "nudgeon": { "message_id": .., "campaign_id"?, "journey_id"?, "deep_link"?, "data"?: {..} } }
+    /// { "aps": { "alert": { "title": .., "body": .. }, "mutable-content": 1 },
+    ///   "nudgeon": { "message_id": .., "journey_id"?, "deep_link"?, "image_url"?, "data"?: {..} } }
     /// ```
+    /// 무음 푸시는 `aps: { "content-available": 1 }`만 있고 alert이 없다 (docs-public/PUSH-CONTRACT.md).
     /// `nudgeon.message_id`가 없으면 NudgeOn 메시지가 아니므로 nil (타 푸시 SDK 공존 — PRD-01A 3.2 위임 취지).
     public static func parse(_ userInfo: [AnyHashable: Any]) -> PushPayload? {
         let nudgeon = (userInfo["nudgeon"] as? [AnyHashable: Any]) ?? [:]
         guard let messageId = stringValue(nudgeon["message_id"]) else { return nil }
 
         let (title, body) = extractAlert(userInfo["aps"])
+        let aps = userInfo["aps"] as? [AnyHashable: Any]
+        let contentAvailable = (aps?["content-available"] as? NSNumber)?.intValue == 1
+        let silent = contentAvailable && aps?["alert"] == nil
         var data: [String: String] = [:]
         if let raw = nudgeon["data"] as? [AnyHashable: Any] {
             for (k, v) in raw {
@@ -46,7 +57,9 @@ public struct PushPayload: Equatable {
             title: title,
             body: body,
             deepLink: stringValue(nudgeon["deep_link"]),
-            data: data
+            imageUrl: stringValue(nudgeon["image_url"]),
+            data: data,
+            silent: silent
         )
     }
 

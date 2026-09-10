@@ -48,14 +48,16 @@ final class EventQueueTests: XCTestCase {
 final class PushPayloadTests: XCTestCase {
     func testParsesNudgeOnMessageWithAlertDict() {
         let userInfo: [AnyHashable: Any] = [
-            "aps": ["alert": ["title": "제목", "body": "본문"]],
+            "aps": ["alert": ["title": "제목", "body": "본문"], "mutable-content": 1],
             "nudgeon": [
                 "message_id": "m-1", "campaign_id": "c-1", "journey_id": "j-1",
-                "deep_link": "myapp://x", "data": ["k": "v", "n": 3],
+                "deep_link": "myapp://x", "image_url": "https://x/i.png", "data": ["k": "v", "n": 3],
             ],
         ]
         let p = PushPayload.parse(userInfo)
         XCTAssertEqual(p?.messageId, "m-1")
+        XCTAssertEqual(p?.imageUrl, "https://x/i.png")
+        XCTAssertEqual(p?.silent, false)
         XCTAssertEqual(p?.campaignId, "c-1")
         XCTAssertEqual(p?.journeyId, "j-1")
         XCTAssertEqual(p?.title, "제목")
@@ -69,6 +71,16 @@ final class PushPayloadTests: XCTestCase {
         let p = PushPayload.parse(["aps": ["alert": "just text"], "nudgeon": ["message_id": "m"]])
         XCTAssertEqual(p?.body, "just text")
         XCTAssertEqual(p?.title, "")
+    }
+
+    func testParsesSilentPush() {
+        // worker apnsPayload(Silent): aps에 content-available만, alert·mutable-content 없음 (PUSH-CONTRACT.md).
+        let p = PushPayload.parse(["aps": ["content-available": 1], "nudgeon": ["message_id": "m-s"]])
+        XCTAssertEqual(p?.silent, true)
+        XCTAssertEqual(p?.title, "")
+        // alert이 있으면 content-available이 있어도 무음이 아니다.
+        let loud = PushPayload.parse(["aps": ["alert": "hi", "content-available": 1], "nudgeon": ["message_id": "m-l"]])
+        XCTAssertEqual(loud?.silent, false)
     }
 
     func testReturnsNilForNonNudgeOnMessage() {

@@ -45,4 +45,22 @@ final class SeenMessagesTests: XCTestCase {
         XCTAssertEqual(received, 1, "두 번째 수신은 리스너에 가지 않는다")
         XCTAssertEqual(opened, 1, "탭은 접지 않는다")
     }
+
+    func testCoreConsumesSilentPushWithoutEvents() {
+        // 무음 푸시(content-available만): NudgeOn 메시지로 소비(true)하되 리스너·이벤트는 없다 (PUSH-CONTRACT.md).
+        let d = defaults()
+        var cfg = NudgeOnConfig(sdkKey: "pk", apiHost: URL(string: "https://ingest.example.com")!)
+        cfg.autoTrackSessions = false
+        let identity = Identity(defaults: d)
+        let network = Network(config: cfg, deviceId: identity.deviceId)
+        let core = NudgeOnCore(config: cfg, identity: identity, queue: EventQueue(fileName: "silent_\(UUID().uuidString).json"),
+                               network: network, push: PushManager(config: cfg, network: network, defaults: d),
+                               bus: EventBus(deliver: { $0() }), seen: SeenMessages(defaults: d))
+        var received = 0
+        _ = core.bus.onPushReceived { _ in received += 1 }
+        let silent: [AnyHashable: Any] = ["aps": ["content-available": 1], "nudgeon": ["message_id": "m-silent"]]
+        XCTAssertTrue(core.handleRemoteNotification(silent, opened: false))
+        XCTAssertEqual(received, 0, "무음 푸시는 수신 리스너에 가지 않는다")
+        XCTAssertNil(core.bus.getInitialPushPayload())
+    }
 }
