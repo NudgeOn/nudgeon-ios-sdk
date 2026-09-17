@@ -47,8 +47,9 @@ import WebKit
         NSLayoutConstraint.activate([close.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -12), close.topAnchor.constraint(equalTo: safe.topAnchor), close.widthAnchor.constraint(equalToConstant: 44), close.heightAnchor.constraint(equalToConstant: 44)])
         close.addTarget(self, action: #selector(userClose), for: .touchUpInside)
         if showHideToday {
-            let hide = UIButton(type: .system); hide.setTitle(NSLocalizedString("Hide today (UTC)", comment: "In-app suppression"), for: .normal)
+            let hide = UIButton(type: .system); hide.setTitle(NSLocalizedString("Hide today", comment: "In-app suppression"), for: .normal)
             hide.setTitleColor(.white, for: .normal); hide.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+            hide.accessibilityHint = "Until midnight (\(artifact.time_zone ?? "UTC"))"
             hide.layer.cornerRadius = 12; hide.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(hide)
             NSLayoutConstraint.activate([hide.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 12), hide.topAnchor.constraint(equalTo: safe.topAnchor), hide.heightAnchor.constraint(equalToConstant: 44), hide.widthAnchor.constraint(equalToConstant: 190)])
             hide.addTarget(self, action: #selector(hideToday), for: .touchUpInside)
@@ -84,7 +85,9 @@ import WebKit
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard !ended else { return }; onEvent?("bridge_ready", "")
-        web.evaluateJavaScript("window.__nudgeonConnect('\(artifact.id)','\(nonce)')") { [weak self] _, error in if error != nil { Task { @MainActor in self?.fail("BRIDGE_ERROR") } } }
+        let contextData = try? JSONSerialization.data(withJSONObject: ["time_zone": artifact.time_zone ?? "UTC"])
+        let context = contextData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        web.evaluateJavaScript("window.__nudgeonConnect('\(artifact.id)','\(nonce)',\(context))") { [weak self] _, error in if error != nil { Task { @MainActor in self?.fail("BRIDGE_ERROR") } } }
     }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         decisionHandler(!ended && !ready && action.targetFrame?.isMainFrame == true && action.request.url == contentURL ? .allow : .cancel)
