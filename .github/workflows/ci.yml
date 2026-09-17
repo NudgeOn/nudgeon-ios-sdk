@@ -25,6 +25,17 @@ jobs:
       - name: swift test
         run: swift test
 
+  in-app-simulator-build:
+    name: In-app module (iOS Simulator)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build UIKit and WebKit implementation
+        run: |
+          xcodebuild -scheme NudgeOnInApp \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/InApp CODE_SIGNING_ALLOWED=NO build
+
   demo-app:
     name: NudgeOnDemo (iOS Simulator)
     runs-on: macos-15
