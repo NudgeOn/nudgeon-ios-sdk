@@ -62,7 +62,10 @@ import WebKit
         impressionTask = Task { [weak self] in try? await Task.sleep(nanoseconds: 1_000_000_000); guard !Task.isCancelled, let self, self.view.window != nil, UIApplication.shared.applicationState == .active else { return }; self.recordImpression() }
     }
     private func recordImpression() { if presented && !ended && !impression { impression = true; onEvent?("impression", "") } }
-    @objc private func hideToday() { onEvent?("hide_today", ""); finish(reason: "hide_today") }
+    @objc private func hideToday() {
+        guard presented && !ended && showHideToday else { return }
+        recordImpression(); onEvent?("hide_today", ""); finish(reason: "hide_today")
+    }
     @objc private func userClose() { finish(reason: "close_button") }
     override func accessibilityPerformEscape() -> Bool { userClose(); return true }
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) { super.viewWillTransition(to: size, with: coordinator); finish(reason: "host_changed") }
@@ -100,6 +103,10 @@ import WebKit
         if method == "ready" { respond(id); if !ready { ready = true; onEvent?("content_ready", ""); onReady?() }; return }
         if method == "log" { onEvent?("log", "JS_ERROR"); respond(id); return }
         guard presented else { respond(id, error: "NOT_PRESENTED"); return }
+        if method == "hideToday" {
+            guard showHideToday else { respond(id, error: "LIVE_CAMPAIGN_REQUIRED"); return }
+            respond(id); hideToday(); return
+        }
         if method == "dismiss" { respond(id); finish(reason: "html_close"); return }
         guard method == "performAction", let actionID = payload["action_id"] as? String, let action = artifact.manifest.actions[actionID], !actionTaken else { respond(id, error: "ACTION_NOT_ALLOWED"); return }
         if action.type == "deep_link" || action.type == "open_url" {
