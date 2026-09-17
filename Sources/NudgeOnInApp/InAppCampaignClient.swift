@@ -8,7 +8,7 @@ import UIKit
     private let host: () -> UIViewController?, allowed: () -> Bool, action: (InAppAction) -> Void, diagnostic: (String) -> Void
     private let network = URLSession(configuration: .ephemeral, delegate: InAppCampaignNoRedirect(), delegateQueue: nil)
     private var credential: String?, renderer: InAppViewController?, delivery: String?
-    private var shown = false
+    private var shown = false, lifecycleEvents = false
     private var enabled = false, busy = false, generation = UUID(), sessionID = UUID()
     private var polling: Task<Void, Never>?, expiry: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
@@ -23,19 +23,24 @@ import UIKit
         store = InAppInstallationStore(account: InAppArtifact.sha256(u.absoluteString + "|" + configuration.sdkKey))
         credential = try store.read()
         if let credential { journal = try makeJournal(credential) }
-        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.contextChanged() } })
+        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.stop("background") } })
         observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.foreground() } })
     }
     deinit { polling?.cancel(); expiry?.cancel(); observers.forEach(NotificationCenter.default.removeObserver); network.invalidateAndCancel() }
     public func enable() { guard !enabled else { return }; enabled = true; startPolling(); foreground() }
-    public func disable() { enabled = false; contextChanged(); polling?.cancel(); polling = nil; Task { try? await self.flush() } }
+    public func disable() { enabled = false; stop("disabled"); polling?.cancel(); polling = nil; Task { try? await self.flush() } }
     /// Call on logout, identity or consent changes. Installation frequency survives identity changes.
-    public func contextChanged() {
-        generation = UUID(); if let id = delivery { queue(id, "failed", "CONTEXT_CHANGED") }
+    public func contextChanged() { stop("context_changed") }
+    private func stop(_ reason: String, failure: Bool = false) {
+        generation = UUID()
+        if let id = delivery {
+            let event = InAppTermination.event(reason: reason, failure: failure, shown: shown, lifecycleEvents: lifecycleEvents)
+            queue(id, event.kind, event.detail)
+        }
         shown = false; renderer?.close(); renderer = nil; delivery = nil; expiry?.cancel(); expiry = nil
     }
-    public func foreground() { guard enabled else { return }; contextChanged(); sessionID = UUID(); trigger(["type": "foreground"]) }
-    public func screen(_ name: String) { contextChanged(); trigger(["type": "screen", "name": name]) }
+    public func foreground() { guard enabled else { return }; stop("session_ended"); sessionID = UUID(); trigger(["type": "foreground"]) }
+    public func screen(_ name: String) { stop("screen_changed"); trigger(["type": "screen", "name": name]) }
     public func track(_ name: String) { trigger(["type": "event", "name": name]) }
     /// Explicit opt-out: revoke this installation and remove its local credential. Does not rotate automatically on HTTP 401.
     public func forgetInstallation() async {
@@ -58,10 +63,13 @@ import UIKit
                 try await self.flush()
                 let data = try await self.request("decisions", body: ["request_key": UUID().uuidString, "session_id": session.uuidString, "trigger": trigger])
                 guard let artifact = try JSONDecoder().decode(Decision.self, from: data).delivery else { return }
-                guard self.enabled, self.allowed(), current == self.generation, let presenter else { self.queue(artifact.id, "failed", "HOST_BLOCKED"); return }
-                self.delivery = artifact.id; try artifact.validate()
+                guard self.enabled, self.allowed(), current == self.generation, let presenter else { self.queue(artifact.id, artifact.lifecycle_events == true ? "cancelled" : "failed", artifact.lifecycle_events == true ? "host_blocked" : "HOST_BLOCKED"); return }
+                self.delivery = artifact.id; self.lifecycleEvents = artifact.lifecycle_events == true; try artifact.validate()
                 let controller = InAppViewController(artifact: artifact, allowedSchemes: self.config.allowedURLSchemes, allowedHosts: self.config.allowedWebHosts, showHideToday: true)
-                controller.onEvent = { [weak self] kind, detail in self?.queue(artifact.id, kind, detail) }
+                controller.onEvent = { [weak self] kind, detail in
+                    if kind == "failed" && detail == "RUN_EXPIRED" && artifact.lifecycle_events == true { self?.queue(artifact.id, "cancelled", "display_timeout") }
+                    else { self?.queue(artifact.id, kind, detail) }
+                }
                 controller.onEnd = { [weak self] action in
                     guard let self, self.delivery == artifact.id else { return }; self.shown = false; self.renderer = nil; self.delivery = nil; self.expiry?.cancel()
                     if let action { self.action(action) }
@@ -75,18 +83,18 @@ import UIKit
                             guard self.delivery == artifact.id else { controller.close(); return }
                             guard self.enabled, self.allowed(), current == self.generation, self.delivery == artifact.id,
                                   UIApplication.shared.applicationState == .active, let presenter, presenter.viewIfLoaded?.window != nil,
-                                  presenter.presentedViewController == nil else { self.contextChanged(); return }
+                                  presenter.presentedViewController == nil else { self.stop("host_blocked"); return }
                             let seconds = Self.remaining(authorization.expires_at)
-                            guard seconds > 0 else { self.contextChanged(); return }
+                            guard seconds > 0 else { self.stop("display_timeout"); return }
                             presenter.present(controller, animated: false) { [weak self] in
                                 self?.shown = true; self?.queue(artifact.id, "presented"); controller.markPresented()
                             }
-                            self.expiry = Task { [weak self] in try? await Task.sleep(nanoseconds: UInt64(min(seconds, 290) * 1_000_000_000)); guard !Task.isCancelled else { return }; self?.contextChanged() }
-                        } catch { if self.delivery == artifact.id { self.contextChanged() }; self.diagnostic("DISPLAY_AUTHORIZATION_FAILED") }
+                            self.expiry = Task { [weak self] in try? await Task.sleep(nanoseconds: UInt64(min(seconds, 290) * 1_000_000_000)); guard !Task.isCancelled else { return }; self?.stop("display_timeout") }
+                        } catch { if self.delivery == artifact.id { self.stop("DISPLAY_AUTHORIZATION_FAILED", failure: true) }; self.diagnostic("DISPLAY_AUTHORIZATION_FAILED") }
                     }
                 }
                 self.renderer = controller; controller.loadViewIfNeeded()
-            } catch { if self.delivery != nil { self.contextChanged() }; self.diagnostic("CAMPAIGN_REQUEST_FAILED"); if case InAppError.server(401) = error { self.disable() } }
+            } catch { if self.delivery != nil { self.stop("CAMPAIGN_REQUEST_FAILED", failure: true) }; self.diagnostic("CAMPAIGN_REQUEST_FAILED"); if case InAppError.server(401) = error { self.disable() } }
         }
     }
     private func queue(_ id: String, _ kind: String, _ detail: String = "") {
@@ -100,7 +108,7 @@ import UIKit
                     do { try await self.flush(); if self.shown, let id = self.delivery {
                         let data = try await self.request("deliveries/\(id)")
                         let state = try JSONDecoder().decode(Status.self, from: data)
-                        if !state.active && self.renderer?.isViewLoaded == true { self.contextChanged() }
+                        if !state.active && self.renderer?.isViewLoaded == true { self.stop(state.reason ?? "delivery_inactive") }
                     }} catch { self.diagnostic("CAMPAIGN_SYNC_FAILED"); if case InAppError.server(401) = error { self.disable(); return } }
                 }
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -132,6 +140,7 @@ import UIKit
     }
     private func request(_ path: String, body: [String: Any]? = nil) async throws -> Data {
         var req = URLRequest(url: config.apiURL.appendingPathComponent("v1/in-app/live/\(path)")); req.httpMethod = body == nil ? "GET" : "POST"; req.timeoutInterval = 10
+        req.setValue("campaign-time-zone", forHTTPHeaderField: "X-NudgeOn-In-App-Capabilities")
         req.setValue("Bearer \(config.sdkKey)", forHTTPHeaderField: "Authorization"); req.setValue(credential, forHTTPHeaderField: "X-NudgeOn-Installation")
         if let body { req.setValue("application/json", forHTTPHeaderField: "Content-Type"); req.httpBody = try JSONSerialization.data(withJSONObject: body) }
         let (data, response) = try await network.data(for: req)
@@ -145,7 +154,7 @@ import UIKit
     private struct Registration: Decodable { let credential: String }
     private struct Decision: Decodable { let delivery: InAppArtifact? }
     private struct Authorization: Decodable { let expires_at: String }
-    private struct Status: Decodable { let active: Bool }
+    private struct Status: Decodable { let active: Bool; let reason: String? }
 }
 private final class InAppCampaignNoRedirect: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }

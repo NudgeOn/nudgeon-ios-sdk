@@ -14,6 +14,8 @@ struct InAppManifest: Codable, Sendable {
     let actions: [String: InAppAction]
 }
 struct InAppArtifact: Codable, Sendable {
+    let time_zone: String?
+    let lifecycle_events: Bool?
     let id: String
     let revision_id: String
     let expires_at: String
@@ -39,4 +41,13 @@ struct InAppCommands: Decodable {
     struct Run: Decodable { let id: String; let state: String }
     let state: String
     let run: Run?
+}
+
+// Preserve old-server telemetry while new servers can distinguish normal interruptions.
+enum InAppTermination {
+    static func event(reason: String, failure: Bool, shown: Bool, lifecycleEvents: Bool) -> (kind: String, detail: String) {
+        if failure { return ("failed", reason) }
+        if lifecycleEvents { return ("cancelled", reason) }
+        return shown ? ("dismiss", reason) : ("failed", "HOST_BLOCKED")
+    }
 }
