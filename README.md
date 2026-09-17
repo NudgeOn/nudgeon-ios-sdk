@@ -1,5 +1,7 @@
 # NudgeOn iOS SDK
 
+CocoaPods 코어·알림 확장 배포 준비와 검증은 [COCOAPODS.md](COCOAPODS.md)를 참고하세요. 현재 trunk 게시 완료를 뜻하지 않습니다.
+
 [![SPM](https://img.shields.io/github/v/release/NudgeOn/nudgeon-ios-sdk?label=Swift%20Package&sort=semver)](https://github.com/NudgeOn/nudgeon-ios-sdk/releases)
 [![CI](https://github.com/NudgeOn/nudgeon-ios-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/NudgeOn/nudgeon-ios-sdk/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
