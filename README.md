@@ -5,21 +5,16 @@ CocoaPods 코어·알림 확장 배포 준비와 검증은 [COCOAPODS.md](COCOAP
 [![SPM](https://img.shields.io/github/v/release/NudgeOn/nudgeon-ios-sdk?label=Swift%20Package&sort=semver)](https://github.com/NudgeOn/nudgeon-ios-sdk/releases)
 [![CI](https://github.com/NudgeOn/nudgeon-ios-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/NudgeOn/nudgeon-ios-sdk/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)
+[![status](https://img.shields.io/badge/status-beta--candidate-orange.svg)](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)
 
 [NudgeOn](https://nudgeon.io) 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
-이벤트를 수집하고 푸시를 수신합니다. Android SDK와 API가 동형입니다.
+이벤트를 수집하고 푸시를 수신합니다. 공통 이벤트·식별·푸시 API를 제공합니다.
 
-> ⚠️ **알파입니다. 프로덕션에 쓰지 마세요.**
-> 코어 경로(init · identify · track · 오프라인 큐 · 푸시 등록 · 리스너 · NSE 도달)는 동작하지만,
-> 아래가 아직 완료되지 않았습니다.
->
-> - **`message_id` 연결** — 서버·iOS·Android가 푸시 payload에서 식별자를 읽는 방식이 아직 통일되지 않았습니다. 발송·도달·리포트 간 조인이 보장되지 않습니다
-> - **수신 동의 · 로그아웃 · 토큰 소유권** 서버 동기화
-> - **실기기 · 실공급자 발송 검증**
->
-> API와 스키마는 예고 없이 바뀔 수 있습니다. 진행 상황은
-> [출시 체크리스트](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)를 보세요.
+> **파트너 베타 후보입니다.** SPM 0.2.2는 공개 배포되었으며, CocoaPods core/NSE는
+> 검증·배포 준비를 마치고 메인테이너 로그인 후 trunk 게시를 기다립니다.
+> 플랫폼 전체의 관리형 저장소·목표 부하·24시간 시험과 외부 온보딩 검증은 남아 있습니다.
+> 최신 단말·공급자 검증 범위는 [출시 체크리스트](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)를 확인하세요.
+> 서버·SDK의 공통 메시지 식별자 계약은 아래 푸시 계약 문서를 따릅니다.
 
 - **플랫폼 저장소** — [NudgeOn/nudgeon-platform](https://github.com/NudgeOn/nudgeon-platform)
 - **API 가이드** — [docs-public/API.md](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/API.md)
@@ -125,13 +120,13 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 
 - **M1** ✅ init·identify·track·오프라인 큐
 - **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사(권한 포함)·NSE 도달·rich push
-- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/NudgeOnContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/NudgeOnDemo`) (현재) / ☐ SPM·CocoaPods 배포
+- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/NudgeOnContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/NudgeOnDemo`) / ✅ SPM 0.2.2 배포 / ☐ CocoaPods trunk 게시 (준비·lint 완료)
 
 
 ## 테스트
 
 ```bash
-swift test   # 단위(25) + 계약(4 시나리오) = 26 test cases
+swift test   # 단위·계약 테스트; 최신 개수와 결과는 CI 참조
 ```
 
 - **계약 테스트** — `contract-tests/scenarios/*.json`(4플랫폼 공용 단일 출처)을 로드해
