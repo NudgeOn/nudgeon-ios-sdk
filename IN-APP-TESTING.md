@@ -37,13 +37,13 @@ Add the `NudgeOnInApp` product to your app target in Xcode (package version 0.2.
 
 ## HTML 안의 오늘 하루 안 보기 (0.2.1+)
 
-업데이트한 NudgeOn 서버에서 저장한 소스는 `window.nudgeonBridge.hideToday()`를 호출할 수 있습니다. 표시 중인 라이브 캠페인에서 impression → hide_today → dismiss(hide_today)를 기록하고 닫습니다. 동일 설치·캠페인을 캠페인 시간대의 다음 자정까지 제외합니다. SDK 0.2.3와 업데이트한 서버에서 `Asia/Seoul`을 설정하면 한국 시간 자정이며, 기존 설정의 기본값은 UTC입니다. 별도 manifest 액션 등록은 필요 없습니다.
+업데이트한 NudgeOn 서버에서 저장한 소스는 `window.nudgeonBridge.hideToday()`를 호출할 수 있습니다. 표시 중인 라이브 캠페인에서 impression → hide_today → dismiss(hide_today)를 기록하고 닫습니다. 동일 설치·캠페인을 캠페인 시간대의 다음 자정까지 제외합니다. SDK 0.2.2와 업데이트한 서버에서 `Asia/Seoul`을 설정하면 한국 시간 자정이며, 기존 설정의 기본값은 UTC입니다. 별도 manifest 액션 등록은 필요 없습니다.
 
 테스트 연결 모드에서는 `LIVE_CAMPAIGN_REQUIRED`로 거절하고 팝업을 유지합니다. 콘솔 미리보기에서는 모의 실행임을 표시합니다. 기존 SDK 0.2.0은 HTML 호출을 지원하지 않으므로 0.2.1 이상이 필요합니다. 일반 `dismiss()`는 오늘 하루 숨김을 적용하지 않습니다.
 
-## 캠페인 시간대·정상 중단 (0.2.3+)
+## 캠페인 시간대·정상 중단 (0.2.2+)
 
-서버·콘솔을 먼저 업데이트한 뒤 SDK를 적용하세요. SDK는 `campaign-time-zone` capability를 보내고, 불변 게시 버전의 시간대를 네이티브 숨김 안내 및 HTML 브리지에 전달합니다. 새 서버에서 다시 저장한 소스의 `window.nudgeonBridge.timeZone`은 읽기 전용이며, 구 소스/서버의 기본값은 UTC입니다. UTC 외 캠페인은 0.2.3 이상에만 표시됩니다. API에서 시간대를 생략한 기존 캠페인은 UTC를 유지합니다.
+서버·콘솔을 먼저 업데이트한 뒤 SDK를 적용하세요. SDK는 `campaign-time-zone` capability를 보내고, 불변 게시 버전의 시간대를 네이티브 숨김 안내 및 HTML 브리지에 전달합니다. 새 서버에서 다시 저장한 소스의 `window.nudgeonBridge.timeZone`은 읽기 전용이며, 구 소스/서버의 기본값은 UTC입니다. UTC 외 캠페인은 0.2.2 이상에만 표시됩니다. API에서 시간대를 생략한 기존 캠페인은 UTC를 유지합니다.
 
 라이브 캠페인의 백그라운드·화면/세션/표시 조건 변경·비활성화·서버 중지·기간 만료는 `cancelled`와 사유로 전송하며 실제 렌더링/통신 오류는 `failed`로 유지합니다. 구 서버에서는 표시 후 정상 종료를 `dismiss`, 표시 전 중단을 `failed(HOST_BLOCKED)`로 보내 호환성을 유지합니다. 테스트 연결의 로그와는 별도입니다.
 
