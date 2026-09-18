@@ -14,6 +14,34 @@ import UIKit
     private var observers: [NSObjectProtocol] = []
     private var journal: InAppEventJournal?
     private var retryAt = Date.distantPast, failures = 0
+    private var launchWindow: InAppLaunchWindow?, launchTimeout: Task<Void, Never>?
+    private var launchCompletion: ((InAppLaunchResult) -> Void)?
+    private var launchMode = false, returnedFromBackground = false
+    private var monotonicNow: TimeInterval { ProcessInfo.processInfo.systemUptime }
+    private func finishLaunch(_ result: InAppLaunchResult, at time: TimeInterval? = nil) {
+        guard let resolved = launchWindow?.complete(result, now: time ?? monotonicNow) else { return }
+        launchTimeout?.cancel(); launchTimeout = nil
+        let completion = launchCompletion; launchCompletion = nil
+        if let completion { DispatchQueue.main.async { completion(resolved) } }
+    }
+    /// Call instead of enable(), after the launch screen and consent/UI are ready.
+    /// One attempt per API/key per process, including owner recreation. Never blocks app launch.
+    @discardableResult public func enableAfterLaunch(timeoutSeconds: TimeInterval = 3,
+        onResult: @escaping (InAppLaunchResult) -> Void = { _ in }) -> Bool {
+        guard !enabled else { DispatchQueue.main.async { onResult(.alreadyHandled) }; return false }
+        enabled = true; launchMode = true; startPolling()
+        guard InAppLaunchRegistry.process.claim(store.account) else { DispatchQueue.main.async { onResult(.alreadyHandled) }; return false }
+        stop("session_ended"); sessionID = UUID()
+        let window = InAppLaunchWindow(timeout: timeoutSeconds, now: monotonicNow)
+        launchWindow = window; launchCompletion = onResult
+        launchTimeout = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(0, window.deadline - (self?.monotonicNow ?? window.deadline)) * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.launchWindow === window, window.result == nil else { return }
+            self.stop("launch_timeout")
+        }
+        trigger(["type": "launch"])
+        return true
+    }
     public init(configuration: Configuration, host: @escaping () -> UIViewController?, isAllowed: @escaping () -> Bool,
                 onAction: @escaping (InAppAction) -> Void, onDiagnostic: @escaping (String) -> Void = { _ in }) throws {
         let u = configuration.apiURL
@@ -23,10 +51,10 @@ import UIKit
         store = InAppInstallationStore(account: InAppArtifact.sha256(u.absoluteString + "|" + configuration.sdkKey))
         credential = try store.read()
         if let credential { journal = try makeJournal(credential) }
-        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.stop("background") } })
-        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.foreground() } })
+        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.returnedFromBackground = true; self?.stop("background") } })
+        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in guard let self, !self.launchMode || self.returnedFromBackground else { return }; self.returnedFromBackground = false; self.foreground() } })
     }
-    deinit { polling?.cancel(); expiry?.cancel(); observers.forEach(NotificationCenter.default.removeObserver); network.invalidateAndCancel() }
+    deinit { launchTimeout?.cancel(); polling?.cancel(); expiry?.cancel(); observers.forEach(NotificationCenter.default.removeObserver); network.invalidateAndCancel() }
     public func enable() { guard !enabled else { return }; enabled = true; startPolling(); foreground() }
     public func disable() { enabled = false; stop("disabled"); polling?.cancel(); polling = nil; Task { try? await self.flush() } }
     /// Call on logout, identity or consent changes. Installation frequency survives identity changes.
@@ -38,6 +66,7 @@ import UIKit
             queue(id, event.kind, event.detail)
         }
         shown = false; renderer?.close(); renderer = nil; delivery = nil; expiry?.cancel(); expiry = nil
+        finishLaunch(reason == "launch_timeout" ? .timedOut : failure ? .failed : .cancelled)
     }
     public func foreground() { guard enabled else { return }; stop("session_ended"); sessionID = UUID(); trigger(["type": "foreground"]) }
     public func screen(_ name: String) { stop("screen_changed"); trigger(["type": "screen", "name": name]) }
@@ -48,8 +77,9 @@ import UIKit
     }
     private func trigger(_ trigger: [String: String]) {
         guard enabled, allowed(), !busy, renderer == nil, UIApplication.shared.applicationState == .active,
-              let presenter = host(), presenter.viewIfLoaded?.window != nil, presenter.presentedViewController == nil else { return }
+              let presenter = host(), presenter.viewIfLoaded?.window != nil, presenter.presentedViewController == nil else { if trigger["type"] == "launch" { finishLaunch(.blocked) }; return }
         busy = true; let current = generation, session = sessionID
+        let launch = trigger["type"] == "launch" ? launchWindow : nil
         Task { [weak self, weak presenter] in
             guard let self else { return }; defer { self.busy = false }
             do {
@@ -61,12 +91,14 @@ import UIKit
                     try self.store.write(value.credential); self.credential = value.credential; self.journal = journal
                 }
                 try await self.flush()
+                guard self.enabled, current == self.generation else { return }
                 let data = try await self.request("decisions", body: ["request_key": UUID().uuidString, "session_id": session.uuidString, "trigger": trigger])
-                guard let artifact = try JSONDecoder().decode(Decision.self, from: data).delivery else { return }
-                guard self.enabled, self.allowed(), current == self.generation, let presenter else { self.queue(artifact.id, artifact.lifecycle_events == true ? "cancelled" : "failed", artifact.lifecycle_events == true ? "host_blocked" : "HOST_BLOCKED"); return }
+                guard let artifact = try JSONDecoder().decode(Decision.self, from: data).delivery else { if current == self.generation { self.finishLaunch(.noCampaign) }; return }
+                guard self.enabled, self.allowed(), current == self.generation, let presenter else { self.queue(artifact.id, artifact.lifecycle_events == true ? "cancelled" : "failed", artifact.lifecycle_events == true ? "host_blocked" : "HOST_BLOCKED"); if current == self.generation { self.finishLaunch(.blocked) }; return }
                 self.delivery = artifact.id; self.lifecycleEvents = artifact.lifecycle_events == true; try artifact.validate()
                 let controller = InAppViewController(artifact: artifact, allowedSchemes: self.config.allowedURLSchemes, allowedHosts: self.config.allowedWebHosts, showHideToday: true)
                 controller.onEvent = { [weak self] kind, detail in
+                    if kind == "failed" { self?.finishLaunch(.failed) }
                     if kind == "failed" && detail == "RUN_EXPIRED" && artifact.lifecycle_events == true { self?.queue(artifact.id, "cancelled", "display_timeout") }
                     else { self?.queue(artifact.id, kind, detail) }
                 }
@@ -84,17 +116,19 @@ import UIKit
                             guard self.enabled, self.allowed(), current == self.generation, self.delivery == artifact.id,
                                   UIApplication.shared.applicationState == .active, let presenter, presenter.viewIfLoaded?.window != nil,
                                   presenter.presentedViewController == nil else { self.stop("host_blocked"); return }
+                            if let launch, !launch.canPresent(now: self.monotonicNow) { self.stop("launch_timeout"); return }
                             let seconds = Self.remaining(authorization.expires_at)
                             guard seconds > 0 else { self.stop("display_timeout"); return }
+                            let presentationTime = self.monotonicNow
                             presenter.present(controller, animated: false) { [weak self] in
-                                self?.shown = true; self?.queue(artifact.id, "presented"); controller.markPresented()
+                                self?.shown = true; self?.queue(artifact.id, "presented"); controller.markPresented(); self?.finishLaunch(.shown, at: presentationTime)
                             }
                             self.expiry = Task { [weak self] in try? await Task.sleep(nanoseconds: UInt64(min(seconds, 290) * 1_000_000_000)); guard !Task.isCancelled else { return }; self?.stop("display_timeout") }
                         } catch { if self.delivery == artifact.id { self.stop("DISPLAY_AUTHORIZATION_FAILED", failure: true) }; self.diagnostic("DISPLAY_AUTHORIZATION_FAILED") }
                     }
                 }
                 self.renderer = controller; controller.loadViewIfNeeded()
-            } catch { if self.delivery != nil { self.stop("CAMPAIGN_REQUEST_FAILED", failure: true) }; self.diagnostic("CAMPAIGN_REQUEST_FAILED"); if case InAppError.server(401) = error { self.disable() } }
+            } catch { if current == self.generation { self.stop("CAMPAIGN_REQUEST_FAILED", failure: true) }; self.diagnostic("CAMPAIGN_REQUEST_FAILED"); if case InAppError.server(401) = error { self.disable() } }
         }
     }
     private func queue(_ id: String, _ kind: String, _ detail: String = "") {

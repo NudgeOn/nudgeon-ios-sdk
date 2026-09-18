@@ -141,3 +141,21 @@ swift test   # 단위·계약 테스트; 최신 개수와 결과는 CI 참조
 
 [Apache License 2.0](LICENSE). NudgeOn 이름·워드마크·로고는 이 허여 대상이 아닙니다 —
 [상표 정책](TRADEMARKS.md)을 따릅니다.
+
+## 앱 실행 직후 광고 (0.2.3)
+
+앱 시작 화면과 동의·라우팅이 끝난 뒤 준비된 화면에서 기존 `enable()` 대신 호출합니다.
+
+```swift
+campaigns.enableAfterLaunch(timeoutSeconds: 3) { result in
+    // shown / noCampaign / timedOut / blocked / cancelled / failed / alreadyHandled
+    print(result.rawValue)
+}
+```
+
+앱 프로세스당 한 번만 시도하며 Scene/Activity/클라이언트 재생성으로 다시 표시하지 않습니다.
+광고가 없거나 준비가 늦으면 메인 화면을 그대로 사용합니다. 준비 중 `screen()`을 곧바로
+호출하면 시작 시도가 취소됩니다. 객체는 앱 소유자가 보관하고 실제 화면 변경만 전달하세요.
+시작 기회를 이미 사용했어도 이후 화면/이벤트 캠페인은 활성 상태로 유지합니다.
+전면·투명 팝업, 오늘 하루 숨김, 캠페인 시간대·빈도 제한을 재사용합니다.
+서버/콘솔을 먼저 반영하세요. [전체 계약](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/APP-LAUNCH-ADS.md).
