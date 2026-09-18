@@ -8,6 +8,9 @@ import WebKit
     var onEnd: ((InAppAction?) -> Void)?
     private let artifact: InAppArtifact, nonce = UUID().uuidString
     private let showHideToday: Bool
+    private let autoDismissSeconds: TimeInterval?
+    private var autoDismiss: Task<Void, Never>?
+    private var fullscreen: Bool { autoDismissSeconds != nil || artifact.manifest.display.type == "fullscreen" }
     private let allowedSchemes: Set<String>, allowedHosts: Set<String>
     private var web: WKWebView!
     private var loader: InAppSchemeHandler!
@@ -15,14 +18,15 @@ import WebKit
     private var watchdog: Task<Void, Never>?, impressionTask: Task<Void, Never>?
     private var replies: [String: String] = [:]
     private let contentURL = URL(string: "nudgeon-content://bundle/index.html")!
-    init(artifact: InAppArtifact, allowedSchemes: Set<String>, allowedHosts: Set<String>, showHideToday: Bool = false) {
+    init(artifact: InAppArtifact, allowedSchemes: Set<String>, allowedHosts: Set<String>, showHideToday: Bool = false, autoDismissSeconds: TimeInterval? = nil) {
+        self.autoDismissSeconds = autoDismissSeconds
         self.showHideToday = showHideToday
         self.artifact = artifact; self.allowedSchemes = allowedSchemes; self.allowedHosts = allowedHosts
         super.init(nibName: nil, bundle: nil); modalPresentationStyle = .overFullScreen
     }
     required init?(coder: NSCoder) { nil }
     override func viewDidLoad() {
-        super.viewDidLoad(); view.backgroundColor = UIColor.black.withAlphaComponent(artifact.manifest.display.backdrop_opacity)
+        super.viewDidLoad(); view.backgroundColor = fullscreen ? .black : UIColor.black.withAlphaComponent(artifact.manifest.display.backdrop_opacity)
         view.accessibilityViewIsModal = true
         let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent()
         loader = InAppSchemeHandler(html: artifact.html); config.setURLSchemeHandler(loader, forURLScheme: "nudgeon-content")
@@ -31,9 +35,17 @@ import WebKit
         web.scrollView.backgroundColor = .clear; web.navigationDelegate = self; web.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(web)
         let safe = view.safeAreaLayoutGuide
-        let display = artifact.manifest.display.type
-        var layout = [web.leadingAnchor.constraint(equalTo: safe.leadingAnchor), web.trailingAnchor.constraint(equalTo: safe.trailingAnchor)]
-        if display == "bottom" {
+        let display = fullscreen ? "fullscreen" : artifact.manifest.display.type
+        var layout: [NSLayoutConstraint] = []
+        if display == "fullscreen" {
+            // The document paints every pixel; native escape controls remain inside the safe area.
+            layout = [web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor), web.topAnchor.constraint(equalTo: view.topAnchor), web.bottomAnchor.constraint(equalTo: view.bottomAnchor)]
+        } else {
+            layout = [web.leadingAnchor.constraint(equalTo: safe.leadingAnchor), web.trailingAnchor.constraint(equalTo: safe.trailingAnchor)]
+        }
+        if display == "fullscreen" {
+            web.isOpaque = true; web.backgroundColor = .black; web.scrollView.backgroundColor = .black
+        } else if display == "bottom" {
             layout += [web.bottomAnchor.constraint(equalTo: safe.bottomAnchor), web.heightAnchor.constraint(equalTo: safe.heightAnchor, multiplier: 0.65)]
         } else if display == "modal" {
             layout += [web.centerYAnchor.constraint(equalTo: safe.centerYAnchor, constant: 22), web.heightAnchor.constraint(equalTo: safe.heightAnchor, multiplier: 0.8)]
@@ -41,18 +53,20 @@ import WebKit
             layout += [web.topAnchor.constraint(equalTo: safe.topAnchor, constant: 44), web.bottomAnchor.constraint(equalTo: safe.bottomAnchor)]
         }
         NSLayoutConstraint.activate(layout)
-        let close = UIButton(type: .system); close.setTitle("✕", for: .normal); close.setTitleColor(.white, for: .normal)
-        close.backgroundColor = UIColor.black.withAlphaComponent(0.65); close.layer.cornerRadius = 22; close.accessibilityLabel = NSLocalizedString("Close event", comment: "In-app event close")
-        close.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(close)
-        NSLayoutConstraint.activate([close.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -12), close.topAnchor.constraint(equalTo: safe.topAnchor), close.widthAnchor.constraint(equalToConstant: 44), close.heightAnchor.constraint(equalToConstant: 44)])
-        close.addTarget(self, action: #selector(userClose), for: .touchUpInside)
-        if showHideToday {
-            let hide = UIButton(type: .system); hide.setTitle(NSLocalizedString("Hide today", comment: "In-app suppression"), for: .normal)
-            hide.setTitleColor(.white, for: .normal); hide.backgroundColor = UIColor.black.withAlphaComponent(0.65)
-            hide.accessibilityHint = "Until midnight (\(artifact.time_zone ?? "UTC"))"
-            hide.layer.cornerRadius = 12; hide.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(hide)
-            NSLayoutConstraint.activate([hide.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 12), hide.topAnchor.constraint(equalTo: safe.topAnchor), hide.heightAnchor.constraint(equalToConstant: 44), hide.widthAnchor.constraint(equalToConstant: 190)])
-            hide.addTarget(self, action: #selector(hideToday), for: .touchUpInside)
+        if autoDismissSeconds == nil {
+            let close = UIButton(type: .system); close.setTitle("✕", for: .normal); close.setTitleColor(.white, for: .normal)
+            close.backgroundColor = UIColor.black.withAlphaComponent(0.65); close.layer.cornerRadius = 22; close.accessibilityLabel = NSLocalizedString("Close event", comment: "In-app event close")
+            close.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(close)
+            NSLayoutConstraint.activate([close.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -12), close.topAnchor.constraint(equalTo: safe.topAnchor), close.widthAnchor.constraint(equalToConstant: 44), close.heightAnchor.constraint(equalToConstant: 44)])
+            close.addTarget(self, action: #selector(userClose), for: .touchUpInside)
+            if showHideToday {
+                let hide = UIButton(type: .system); hide.setTitle(NSLocalizedString("Hide today", comment: "In-app suppression"), for: .normal)
+                hide.setTitleColor(.white, for: .normal); hide.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+                hide.accessibilityHint = "Until midnight (\(artifact.time_zone ?? "UTC"))"
+                hide.layer.cornerRadius = 12; hide.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(hide)
+                NSLayoutConstraint.activate([hide.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 12), hide.topAnchor.constraint(equalTo: safe.topAnchor), hide.heightAnchor.constraint(equalToConstant: 44), hide.widthAnchor.constraint(equalToConstant: 190)])
+                hide.addTarget(self, action: #selector(hideToday), for: .touchUpInside)
+            }
         }
         web.load(URLRequest(url: contentURL))
         watchdog = Task { [weak self] in try? await Task.sleep(nanoseconds: 5_000_000_000); guard !Task.isCancelled, let self, !self.presented else { return }; self.fail("CONTENT_TIMEOUT") }
@@ -60,6 +74,13 @@ import WebKit
     func markPresented() {
         guard !ended else { return }; presented = true; watchdog?.cancel()
         watchdog = Task { [weak self] in try? await Task.sleep(nanoseconds: 290_000_000_000); guard !Task.isCancelled else { return }; self?.fail("RUN_EXPIRED") }
+        if let seconds = autoDismissSeconds {
+            autoDismiss = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                guard !Task.isCancelled, let self else { return }
+                self.recordImpression(); self.finish(reason: "auto_dismiss")
+            }
+        }
         impressionTask = Task { [weak self] in try? await Task.sleep(nanoseconds: 1_000_000_000); guard !Task.isCancelled, let self, self.view.window != nil, UIApplication.shared.applicationState == .active else { return }; self.recordImpression() }
     }
     private func recordImpression() { if presented && !ended && !impression { impression = true; onEvent?("impression", "") } }
@@ -71,7 +92,7 @@ import WebKit
     override func accessibilityPerformEscape() -> Bool { userClose(); return true }
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) { super.viewWillTransition(to: size, with: coordinator); finish(reason: "host_changed") }
     func close() {
-        guard !ended else { return }; ended = true; watchdog?.cancel(); impressionTask?.cancel()
+        guard !ended else { return }; ended = true; watchdog?.cancel(); impressionTask?.cancel(); autoDismiss?.cancel()
         web?.stopLoading(); web?.configuration.userContentController.removeScriptMessageHandler(forName: "nudgeon"); web?.navigationDelegate = nil
         if presentingViewController != nil { dismiss(animated: false) }; onReady = nil; onEvent = nil; onEnd = nil
     }
@@ -79,7 +100,7 @@ import WebKit
     private func finish(reason: String, action: InAppAction? = nil) {
         guard !ended else { return }; onEvent?("dismiss", reason); let callback = onEnd
         // Ensure navigation runs after the overlay has been dismissed.
-        ended = true; watchdog?.cancel(); impressionTask?.cancel(); web.stopLoading(); web.configuration.userContentController.removeScriptMessageHandler(forName: "nudgeon"); web.navigationDelegate = nil
+        ended = true; watchdog?.cancel(); impressionTask?.cancel(); autoDismiss?.cancel(); web.stopLoading(); web.configuration.userContentController.removeScriptMessageHandler(forName: "nudgeon"); web.navigationDelegate = nil
         onReady = nil; onEvent = nil; onEnd = nil
         if presentingViewController != nil { dismiss(animated: false) { callback?(action) } } else { callback?(action) }
     }

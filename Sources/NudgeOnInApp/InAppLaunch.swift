@@ -18,6 +18,7 @@ final class InAppLaunchRegistry: @unchecked Sendable {
 
 /// Monotonic deadline and one-shot completion; independent of wall-clock / timezone changes.
 final class InAppLaunchWindow {
+    static func displayDuration(_ value: TimeInterval) -> TimeInterval { value.isFinite ? min(5, max(3, value)) : 4 }
     let deadline: TimeInterval
     private(set) var result: InAppLaunchResult?
     init(timeout: TimeInterval, now: TimeInterval) {

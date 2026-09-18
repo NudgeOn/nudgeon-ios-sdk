@@ -25,6 +25,13 @@ final class InAppLaunchTests: XCTestCase {
         XCTAssertEqual(shown.complete(.shown, now: 102), .shown)
         XCTAssertNil(shown.complete(.timedOut, now: 104))
     }
+    func testDisplayDurationIsAlwaysThreeToFiveSeconds() {
+        XCTAssertEqual(InAppLaunchWindow.displayDuration(.nan), 4)
+        XCTAssertEqual(InAppLaunchWindow.displayDuration(.infinity), 4)
+        XCTAssertEqual(InAppLaunchWindow.displayDuration(-1), 3)
+        XCTAssertEqual(InAppLaunchWindow.displayDuration(4.5), 4.5)
+        XCTAssertEqual(InAppLaunchWindow.displayDuration(100), 5)
+    }
     func testInvalidTimeoutsRemainBounded() {
         XCTAssertEqual(InAppLaunchWindow(timeout: .nan, now: 10).deadline, 13)
         XCTAssertEqual(InAppLaunchWindow(timeout: -.infinity, now: 10).deadline, 13)

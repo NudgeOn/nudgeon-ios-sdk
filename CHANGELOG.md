@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4 — 2026-09-18
+
+- Startup ads fill the screen and auto-dismiss after 4 seconds (displaySeconds: 3–5).
+- The native timer starts after presentation; startup ads do not require a close/hide button.
+- Fullscreen web content covers the full viewport on iOS and Android.
+- Late launch decisions record launch_timeout instead of host_blocked.
+
 ## 0.2.3 — 2026-09-18
 
 - 앱 시작 화면 이후 `enableAfterLaunch`로 launch 캠페인을 요청합니다. 기존 enable/foreground 동작은 유지합니다.
