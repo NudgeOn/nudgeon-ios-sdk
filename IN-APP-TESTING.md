@@ -1,4 +1,4 @@
-# In-app module (0.2.3)
+# In-app module (0.2.4)
 
 `NudgeOnInApp` is an optional iOS 15+ Swift Package product. Available starting with SDK 0.2.0. It connects to the NudgeOn platform's in-app source workbench; it does not automatically display production campaigns.
 

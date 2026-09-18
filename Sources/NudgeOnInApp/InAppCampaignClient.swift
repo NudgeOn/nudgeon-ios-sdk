@@ -16,6 +16,7 @@ import UIKit
     private var retryAt = Date.distantPast, failures = 0
     private var launchWindow: InAppLaunchWindow?, launchTimeout: Task<Void, Never>?
     private var launchCompletion: ((InAppLaunchResult) -> Void)?
+    private var launchDisplaySeconds: TimeInterval = 4
     private var launchMode = false, returnedFromBackground = false
     private var monotonicNow: TimeInterval { ProcessInfo.processInfo.systemUptime }
     private func finishLaunch(_ result: InAppLaunchResult, at time: TimeInterval? = nil) {
@@ -26,7 +27,7 @@ import UIKit
     }
     /// Call instead of enable(), after the launch screen and consent/UI are ready.
     /// One attempt per API/key per process, including owner recreation. Never blocks app launch.
-    @discardableResult public func enableAfterLaunch(timeoutSeconds: TimeInterval = 3,
+    @discardableResult public func enableAfterLaunch(timeoutSeconds: TimeInterval = 3, displaySeconds: TimeInterval = 4,
         onResult: @escaping (InAppLaunchResult) -> Void = { _ in }) -> Bool {
         guard !enabled else { DispatchQueue.main.async { onResult(.alreadyHandled) }; return false }
         enabled = true; launchMode = true; startPolling()
@@ -34,6 +35,7 @@ import UIKit
         stop("session_ended"); sessionID = UUID()
         let window = InAppLaunchWindow(timeout: timeoutSeconds, now: monotonicNow)
         launchWindow = window; launchCompletion = onResult
+        launchDisplaySeconds = InAppLaunchWindow.displayDuration(displaySeconds)
         launchTimeout = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(max(0, window.deadline - (self?.monotonicNow ?? window.deadline)) * 1_000_000_000))
             guard !Task.isCancelled, let self, self.launchWindow === window, window.result == nil else { return }
@@ -94,9 +96,9 @@ import UIKit
                 guard self.enabled, current == self.generation else { return }
                 let data = try await self.request("decisions", body: ["request_key": UUID().uuidString, "session_id": session.uuidString, "trigger": trigger])
                 guard let artifact = try JSONDecoder().decode(Decision.self, from: data).delivery else { if current == self.generation { self.finishLaunch(.noCampaign) }; return }
-                guard self.enabled, self.allowed(), current == self.generation, let presenter else { self.queue(artifact.id, artifact.lifecycle_events == true ? "cancelled" : "failed", artifact.lifecycle_events == true ? "host_blocked" : "HOST_BLOCKED"); if current == self.generation { self.finishLaunch(.blocked) }; return }
+                guard self.enabled, self.allowed(), current == self.generation, let presenter else { self.queue(artifact.id, artifact.lifecycle_events == true ? "cancelled" : "failed", artifact.lifecycle_events == true ? (launch?.result == .timedOut ? "launch_timeout" : "host_blocked") : "HOST_BLOCKED"); if current == self.generation { self.finishLaunch(.blocked) }; return }
                 self.delivery = artifact.id; self.lifecycleEvents = artifact.lifecycle_events == true; try artifact.validate()
-                let controller = InAppViewController(artifact: artifact, allowedSchemes: self.config.allowedURLSchemes, allowedHosts: self.config.allowedWebHosts, showHideToday: true)
+                let controller = InAppViewController(artifact: artifact, allowedSchemes: self.config.allowedURLSchemes, allowedHosts: self.config.allowedWebHosts, showHideToday: launch == nil, autoDismissSeconds: launch == nil ? nil : self.launchDisplaySeconds)
                 controller.onEvent = { [weak self] kind, detail in
                     if kind == "failed" { self?.finishLaunch(.failed) }
                     if kind == "failed" && detail == "RUN_EXPIRED" && artifact.lifecycle_events == true { self?.queue(artifact.id, "cancelled", "display_timeout") }
