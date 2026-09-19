@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.6 — 2026-09-19
+
+- Expose non-secret review context in `transferStatus.review`: latest run/revision, authoritative session/run expiry, last delivery attempt and observed receipt time.
+- Persist context in protected storage across process restart; older journals remain readable with absent metadata.
+- Persist each attempt before transport and preserve acknowledgement/storage-failure semantics. Discard clears context; a new run clears its old timestamps.
+
+
 ## 0.2.5 — 2026-09-19
 
 - Persist content-review telemetry and its short-lived credential in protected storage before sending; replay in order with stable event IDs after restart.

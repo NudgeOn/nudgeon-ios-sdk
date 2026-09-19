@@ -52,8 +52,7 @@ final class InAppTestDeliveryTests: XCTestCase {
     @MainActor func testStorageFailureCannotClaimReceiptAndCanRetryWrite() async throws {
         let store=Store(); let client=try store.make(); try client.begin("a")
         try client.append(run:"r",kind:"dismiss",detail:"")
-        store.fail=true
-        await client.flush(send:{ _,_,_ in },httpStatus:code)
+        await client.flush(send:{ _,_,_ in store.fail=true },httpStatus:code)
         XCTAssertEqual(client.status.phase,.failed); XCTAssertEqual(client.status.reason,"STORAGE_ERROR")
         XCTAssertEqual(client.status.acknowledgedCount,0)
         store.fail=false; try client.retryStorage()
@@ -79,5 +78,47 @@ final class InAppTestDeliveryTests: XCTestCase {
         let client=try Store().make(); try client.begin("a"); try client.append(run:"r",kind:"dismiss",detail:"")
         await client.flush(send:{ _,_,_ in try client.discard() },httpStatus:code)
         XCTAssertEqual(client.status.phase,.idle); XCTAssertEqual(client.status.acknowledgedCount,0)
+    }
+
+    @MainActor func testReviewContextAndClocksSurviveRecovery() async throws {
+        var saved: String?; var time = Date(timeIntervalSince1970: 100)
+        func make() throws -> InAppTestDelivery {
+            try InAppTestDelivery(read: { saved }, write: { saved = $0 }, changed: { _ in }, now: { time })
+        }
+        let client = try make()
+        try client.begin("secret", sessionExpiresAt: "2026-09-19T13:30:00Z")
+        try client.updateSessionExpiry("2026-09-19T13:35:00Z")
+        try client.active("run-a", revisionID: "revision-a", expiresAt: "2026-09-19T13:05:00Z")
+        try client.append(run: "run-a", kind: "dismiss", detail: "")
+        await client.flush(send: { _,_,_ in throw TestError.offline }, httpStatus: code)
+        XCTAssertEqual(client.status.review?.lastAttemptAt, time)
+        XCTAssertNil(client.status.review?.lastReceivedAt)
+        let recovered = try make()
+        XCTAssertEqual(recovered.status.review, client.status.review)
+        time = Date(timeIntervalSince1970: 200)
+        await recovered.flush(send: { _,_,_ in }, httpStatus: code)
+        let detail = recovered.status.review
+        XCTAssertEqual(detail?.runID, "run-a"); XCTAssertEqual(detail?.revisionID, "revision-a")
+        XCTAssertEqual(detail?.sessionExpiresAt, "2026-09-19T13:35:00Z")
+        XCTAssertEqual(detail?.runExpiresAt, "2026-09-19T13:05:00Z")
+        XCTAssertEqual(detail?.lastAttemptAt, time); XCTAssertEqual(detail?.lastReceivedAt, time)
+        XCTAssertEqual(try make().status.review, detail)
+        try recovered.discard(); XCTAssertNil(recovered.status.review)
+    }
+    @MainActor func testOldJournalAndNewRunDoNotInventMetadata() throws {
+        let store = Store()
+        store.value = "{\"events\":[],\"closing\":false,\"acknowledged\":1}"
+        let old = try store.make(); XCTAssertNil(old.status.review)
+        try old.begin("secret"); try old.active("r1", revisionID: "v1", expiresAt: "expiry")
+        try old.active("r2", revisionID: "v2")
+        XCTAssertEqual(old.status.review?.runID, "r2"); XCTAssertNil(old.status.review?.runExpiresAt)
+        XCTAssertNil(old.status.review?.lastReceivedAt)
+    }
+    @MainActor func testAttemptStorageFailureDoesNotSend() async throws {
+        let store = Store()
+        let delivery = try store.make(); try delivery.begin("a"); try delivery.append(run: "r", kind: "dismiss", detail: "")
+        store.fail = true
+        await delivery.flush(send: { _,_,_ in XCTFail("must persist attempt before transport") }, httpStatus: code)
+        XCTAssertEqual(delivery.status.reason, "STORAGE_ERROR"); XCTAssertNil(delivery.status.review?.lastReceivedAt)
     }
 }
