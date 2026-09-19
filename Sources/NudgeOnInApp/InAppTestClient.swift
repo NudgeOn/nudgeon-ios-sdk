@@ -26,26 +26,38 @@ import UIKit
     private var generation = UUID()
     private var observers: [NSObjectProtocol] = []
     private var runID: String?
-    private var events: [(id: String, run: String, kind: String, detail: String)] = []
+    private let storeLease: InAppTestStoreLease
+    private var delivery: InAppTestDelivery!
+    private var transferTask: Task<Void, Never>?
+    public var transferStatus: InAppTestTransferStatus { delivery.status }
 
     public init(configuration: Configuration, host: @escaping () -> UIViewController?, isAllowed: @escaping () -> Bool,
-                onAction: @escaping (InAppAction) -> Void, onDiagnostic: @escaping (String) -> Void = { _ in }) throws {
+                onAction: @escaping (InAppAction) -> Void, onDiagnostic: @escaping (String) -> Void = { _ in },
+                onTransferStatus: @escaping (InAppTestTransferStatus) -> Void = { _ in }) throws {
         let url = configuration.apiURL
         guard url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(url.host ?? "")),
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil else { throw InAppError.invalidServer }
         config = configuration; self.host = host; allowed = isAllowed; action = onAction; diagnostic = onDiagnostic
+        let account = "test-" + InAppArtifact.sha256(configuration.apiURL.absoluteString + "\n" + configuration.sdkKey)
+        storeLease = try InAppTestStoreLease(account)
+        let store = InAppInstallationStore(account: account)
+        delivery = try InAppTestDelivery(read: { try store.read() }, write: { try store.write($0) }, changed: onTransferStatus)
+        startTransfer()
         observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.interrupt("APP_BACKGROUND") }
         })
     }
-    deinit { polling?.cancel(); observers.forEach(NotificationCenter.default.removeObserver); session.invalidateAndCancel() }
+    deinit { transferTask?.cancel(); polling?.cancel(); observers.forEach(NotificationCenter.default.removeObserver); session.invalidateAndCancel() }
 
     /// Call only after the person holding the device explicitly agrees to enter test mode.
     public func pair(token: String, deviceName: String = "iOS test device") async throws -> InAppPairing {
-        await end(); let current = generation
+        await end()
+        guard !delivery.needsRecovery, !delivery.sending else { throw InAppTestDelivery.Failure.pendingRecovery }
+        let current = generation
         let data = try await request("pair", body: ["token": token, "label": String(deviceName.prefix(80)), "platform": "ios", "sdk_version": "inapp-test/1"])
         let result = try JSONDecoder().decode(InAppPairing.self, from: data)
         guard generation == current else { throw InAppError.sessionClosed }
+        try delivery.begin(result.credential)
         credential = result.credential; diagnostic("CONFIRM_DEVICE:\(result.confirmation_code)"); startPolling(); return result
     }
     /// Present from an app-owned debug/settings action; never automatically on launch.
@@ -68,9 +80,24 @@ import UIKit
         })
         presenter.present(alert, animated: true)
     }
+    /// Stops presentation immediately; receipt failures remain durably queued for retry.
     public func end() async {
-        let old = credential; credential = nil; generation = UUID(); polling?.cancel(); polling = nil
-        rendering?.close(); rendering = nil; runID = nil; events.removeAll()
+        credential = nil; generation = UUID(); polling?.cancel(); polling = nil
+        rendering?.close(); rendering = nil; runID = nil
+        do { try delivery.close() } catch { diagnostic("TEST_STORAGE_ERROR"); return }
+        await flush(); startTransfer()
+    }
+    /// Retries stored records only, never commands or presentation.
+    public func retryPendingEvents() {
+        do { try delivery.retryStorage() } catch { diagnostic("TEST_STORAGE_ERROR"); return }
+        Task { [weak self] in await self?.flush(); self?.startTransfer() }
+    }
+    /// Explicit abandonment. Unlike end(), discards telemetry and does not claim receipt.
+    public func discardPendingEvents() async {
+        let old = delivery.snapshot.credential
+        credential = nil; generation = UUID(); polling?.cancel(); polling = nil
+        rendering?.close(); rendering = nil; runID = nil
+        do { try delivery.discard() } catch { diagnostic("TEST_STORAGE_ERROR"); return }
         if let old { _ = try? await request("end", body: [:], token: old) }
     }
     /// Host must call when login identity, consent or screen eligibility changes.
@@ -81,8 +108,24 @@ import UIKit
         rendering?.close(); rendering = nil; runID = nil
     }
     private func queue(_ run: String, _ kind: String, _ detail: String = "") {
-        if events.count < 200 { events.append((UUID().uuidString, run, kind, String(detail.prefix(200)))) }
+        do { try delivery.append(run: run, kind: kind, detail: detail); startTransfer() }
+        catch { diagnostic("TEST_STORAGE_ERROR") }
         diagnostic("\(kind):\(detail)")
+    }
+    private func startTransfer() {
+        guard transferTask == nil, delivery.canRetry,
+              !delivery.snapshot.events.isEmpty || delivery.snapshot.closing else { return }
+        transferTask = Task { [weak self] in
+            var delay: UInt64 = 1_000_000_000
+            while !Task.isCancelled {
+                await self?.flush()
+                guard self?.delivery.canRetry == true,
+                      self?.delivery.snapshot.events.isEmpty == false || self?.delivery.snapshot.closing == true else { break }
+                do { try await Task.sleep(nanoseconds: delay) } catch { break }
+                delay = min(delay * 2, 30_000_000_000)
+            }
+            self?.transferTask = nil
+        }
     }
     private func startPolling() {
         polling?.cancel()
@@ -91,7 +134,8 @@ import UIKit
                 guard let self, self.credential != nil else { return }
                 do {
                     if UIApplication.shared.applicationState == .active {
-                        try await self.flush()
+                        await self.flush()
+                        guard self.delivery.snapshot.events.isEmpty else { throw InAppTestDelivery.Failure.pendingRecovery }
                         let data = try await self.request("commands")
                         let commands = try JSONDecoder().decode(InAppCommands.self, from: data)
                         if let id = self.runID, commands.run?.id != id { self.interrupt("RUN_CANCELLED") }
@@ -103,12 +147,13 @@ import UIKit
             }
         }
     }
-    private func flush() async throws {
-        while let e = events.first {
-            do { _ = try await request("runs/\(e.run)/events", body: ["event_id": e.id, "kind": e.kind, "detail": e.detail]) }
-            catch InAppError.server(let status) where status == 409 || status == 404 { }
-            if events.first?.id == e.id { events.removeFirst() }
-        }
+    private func flush() async {
+        await delivery.flush(send: { [weak self] path, body, token in
+            guard let self else { throw InAppError.sessionClosed }
+            let data = try await self.request(path, body: body, token: token)
+            guard let result = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  result["ok"] as? Bool == true else { throw InAppTestDelivery.Failure.invalidReceipt }
+        }, httpStatus: { error in if case InAppError.server(let code) = error { return code }; return nil })
     }
     private func render(_ id: String) async throws {
         guard allowed(), let presenter = host(), presenter.viewIfLoaded?.window != nil, presenter.presentedViewController == nil else { return }
@@ -117,6 +162,7 @@ import UIKit
         do {
             let artifact = try JSONDecoder().decode(InAppArtifact.self, from: data); try artifact.validate()
             guard current == generation, allowed(), UIApplication.shared.applicationState == .active else { queue(id, "failed", "HOST_BLOCKED"); return }
+            try delivery.active(id)
             runID = id
             let controller = InAppViewController(artifact: artifact, allowedSchemes: config.allowedURLSchemes, allowedHosts: config.allowedWebHosts)
             controller.onReady = { [weak self, weak controller, weak presenter] in

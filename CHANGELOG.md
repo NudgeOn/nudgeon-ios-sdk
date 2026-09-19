@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.5 — 2026-09-19
+
+- Persist content-review telemetry and its short-lived credential in protected storage before sending; replay in order with stable event IDs after restart.
+- Flush queued events before ending the test session. Network failures retry with exponential backoff; permanent rejections remain visible until explicit discard.
+- Add `InAppTestTransferStatus`, `onTransferStatus`, `transferStatus`, `retryPendingEvents()` and `discardPendingEvents()` for waiting/sending/server-confirmed/failed UI.
+- Recovery uploads records only; it never reconnects test commands or reopens an ad. Server expiry and run leases still apply. Receipt is not content-review approval.
+- Enforce one retained test client per API URL and SDK key. Production campaign and push APIs are unchanged.
+
 ## 0.2.4 — 2026-09-18
 
 - Startup ads fill the screen and auto-dismiss after 4 seconds (displaySeconds: 3–5).
