@@ -38,6 +38,7 @@ public struct InAppPairing: Codable, Sendable {
     let credential: String
 }
 struct InAppCommands: Decodable {
+    let expires_at: String?
     struct Run: Decodable { let id: String; let state: String }
     let state: String
     let run: Run?

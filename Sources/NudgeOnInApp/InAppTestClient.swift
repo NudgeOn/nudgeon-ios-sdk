@@ -57,7 +57,7 @@ import UIKit
         let data = try await request("pair", body: ["token": token, "label": String(deviceName.prefix(80)), "platform": "ios", "sdk_version": "inapp-test/1"])
         let result = try JSONDecoder().decode(InAppPairing.self, from: data)
         guard generation == current else { throw InAppError.sessionClosed }
-        try delivery.begin(result.credential)
+        try delivery.begin(result.credential, sessionExpiresAt: result.expires_at)
         credential = result.credential; diagnostic("CONFIRM_DEVICE:\(result.confirmation_code)"); startPolling(); return result
     }
     /// Present from an app-owned debug/settings action; never automatically on launch.
@@ -138,6 +138,7 @@ import UIKit
                         guard self.delivery.snapshot.events.isEmpty else { throw InAppTestDelivery.Failure.pendingRecovery }
                         let data = try await self.request("commands")
                         let commands = try JSONDecoder().decode(InAppCommands.self, from: data)
+                        try self.delivery.updateSessionExpiry(commands.expires_at)
                         if let id = self.runID, commands.run?.id != id { self.interrupt("RUN_CANCELLED") }
                         if commands.state == "active", let run = commands.run, run.state == "queued", self.runID == nil { try await self.render(run.id) }
                     }
@@ -162,7 +163,7 @@ import UIKit
         do {
             let artifact = try JSONDecoder().decode(InAppArtifact.self, from: data); try artifact.validate()
             guard current == generation, allowed(), UIApplication.shared.applicationState == .active else { queue(id, "failed", "HOST_BLOCKED"); return }
-            try delivery.active(id)
+            try delivery.active(id, revisionID: artifact.revision_id, expiresAt: artifact.expires_at)
             runID = id
             let controller = InAppViewController(artifact: artifact, allowedSchemes: config.allowedURLSchemes, allowedHosts: config.allowedWebHosts)
             controller.onReady = { [weak self, weak controller, weak presenter] in

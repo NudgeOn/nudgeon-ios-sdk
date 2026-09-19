@@ -1,5 +1,16 @@
 import Foundation
 
+/// Non-secret context for locating the latest review. Receipt time is observed on the device,
+/// not a server clock or review approval. Optional fields allow older journals to recover.
+public struct InAppTestReviewDetails: Codable, Equatable {
+    public var runID: String?
+    public var revisionID: String?
+    public var sessionExpiresAt: String?
+    public var runExpiresAt: String?
+    public var lastAttemptAt: Date?
+    public var lastReceivedAt: Date?
+}
+
 /// Server acknowledgement of test telemetry, not approval of the content review.
 public struct InAppTestTransferStatus: Equatable {
     public enum Phase: String { case idle, pending, sending, acknowledged, failed }
@@ -8,6 +19,7 @@ public struct InAppTestTransferStatus: Equatable {
     public let acknowledgedCount: Int
     public let reason: String?
     public let canEndSafely: Bool
+    public var review: InAppTestReviewDetails? = nil
 }
 
 /// One encrypted snapshot per API/key. Transport and storage are injected for failure tests.
@@ -20,9 +32,11 @@ public struct InAppTestTransferStatus: Equatable {
         var closing = false
         var acknowledged = 0
         var terminalError: String?
+        var review: InAppTestReviewDetails?
     }
     enum Failure: Error { case pendingRecovery, storage, invalidReceipt, full }
     typealias Send = (String, [String: String], String) async throws -> Void
+    private let now: () -> Date
     private let write: (String) throws -> Void
     private let changed: (InAppTestTransferStatus) -> Void
     private(set) var snapshot: Snapshot
@@ -35,7 +49,8 @@ public struct InAppTestTransferStatus: Equatable {
     var canRetry: Bool { needsRecovery && snapshot.terminalError == nil && !storageFailed }
 
     init(read: () throws -> String?, write: @escaping (String) throws -> Void,
-         changed: @escaping (InAppTestTransferStatus) -> Void) throws {
+         changed: @escaping (InAppTestTransferStatus) -> Void, now: @escaping () -> Date = Date.init) throws {
+        self.now = now
         self.write = write; self.changed = changed
         if let saved = try read() {
             guard saved.utf8.count <= 256 * 1024 else { throw Failure.storage }
@@ -54,16 +69,25 @@ public struct InAppTestTransferStatus: Equatable {
         }
         publish()
     }
-    func begin(_ credential: String) throws {
+    func begin(_ credential: String, sessionExpiresAt: String? = nil) throws {
         guard !sending, !needsRecovery, !storageFailed else { throw Failure.pendingRecovery }
-        try commit(Snapshot(credential: credential)); epoch = UUID(); publish()
+        try commit(Snapshot(credential: credential, review: InAppTestReviewDetails(sessionExpiresAt: sessionExpiresAt))); epoch = UUID(); publish()
     }
     func retryStorage() throws {
         if let next = pendingWrite { try commit(next); publish() }
     }
-    func active(_ run: String) throws {
+    func updateSessionExpiry(_ value: String?) throws {
+        guard let value, snapshot.credential != nil, value != snapshot.review?.sessionExpiresAt else { return }
         guard !storageFailed else { throw Failure.storage }
-        var next = snapshot; next.activeRun = run; try commit(next); publish()
+        var next = snapshot; var review = next.review ?? InAppTestReviewDetails()
+        review.sessionExpiresAt = value; next.review = review; try commit(next); publish()
+    }
+    func active(_ run: String, revisionID: String? = nil, expiresAt: String? = nil) throws {
+        guard !storageFailed else { throw Failure.storage }
+        var next = snapshot; next.activeRun = run
+        next.review = InAppTestReviewDetails(runID: run, revisionID: revisionID,
+            sessionExpiresAt: next.review?.sessionExpiresAt, runExpiresAt: expiresAt)
+        try commit(next); publish()
     }
     func append(run: String, kind: String, detail: String) throws {
         guard !storageFailed else { throw Failure.storage }
@@ -94,10 +118,16 @@ public struct InAppTestTransferStatus: Equatable {
         defer { sending = false; if current != epoch { publish() } }
         do {
             while let event = snapshot.events.first {
+                var attempt = snapshot
+                var review = attempt.review ?? InAppTestReviewDetails(runID: event.run)
+                if review.runID == nil { review.runID = event.run }
+                review.lastAttemptAt = now(); attempt.review = review
+                try commit(attempt); publish(.sending)
                 try await send("runs/\(event.run)/events", ["event_id": event.id, "kind": event.kind, "detail": event.detail], token)
                 guard current == epoch else { return }
                 var next = snapshot
                 next.events.removeAll { $0.id == event.id }; next.acknowledged += 1
+                next.review?.lastReceivedAt = now()
                 try commit(next) // A failed write leaves the same ID queued for retry.
                 publish(.sending)
             }
@@ -130,7 +160,7 @@ public struct InAppTestTransferStatus: Equatable {
             (!snapshot.events.isEmpty || snapshot.closing ? .pending : (snapshot.acknowledged > 0 ? .acknowledged : .idle))
         status = InAppTestTransferStatus(phase: phase ?? inferred, pendingCount: snapshot.events.count,
             acknowledgedCount: snapshot.acknowledged, reason: error,
-            canEndSafely: error == nil && !sending && snapshot.events.isEmpty && snapshot.activeRun == nil && !snapshot.closing)
+            canEndSafely: error == nil && !sending && snapshot.events.isEmpty && snapshot.activeRun == nil && !snapshot.closing, review: snapshot.review)
         changed(status)
     }
 }
