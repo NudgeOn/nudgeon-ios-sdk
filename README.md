@@ -22,6 +22,40 @@ CocoaPods 코어·알림 확장 배포 준비와 검증은 [COCOAPODS.md](COCOAP
 - **개발자센터** — [nudgeon.io](https://nudgeon.io)
 - **인앱 웹 소스 테스트** — [NudgeOnInApp 연결 안내](IN-APP-TESTING.md) (0.2.6)
 
+
+## 기본 이벤트 (Standard events — 다음 릴리스)
+
+`NudgeOnEvents`로 콘솔과 같은 이벤트 이름을 사용할 수 있습니다. 아래 상수는 이 소스에 추가된 API이며 기존 게시 버전에는 포함되어 있지 않습니다.
+SDK를 초기화한 뒤 해당 행동이 성공한 시점에 호출하세요. 예시는 서로 다른 호출 시점을 보여주며, 회원가입·로그인·구입을 한 번에 자동 수집하는 코드는 아닙니다.
+
+```swift
+import NudgeOnSDK
+
+// After SDK initialization and your app's authentication succeeds:
+NudgeOn.identify(externalId: "user-123")
+NudgeOn.track(NudgeOnEvents.signUp, properties: ["method": "email"])
+NudgeOn.track(NudgeOnEvents.login, properties: ["method": "email"])
+// After order/payment confirmation:
+NudgeOn.track(NudgeOnEvents.purchaseCompleted, properties: [
+    "order_id": "order-123", "total_amount": 29000, "currency": "KRW", "item_count": 1
+])
+```
+
+| 상수 | 전송 이름 | 의미 | 권장 속성 |
+|---|---|---|---|
+| `NudgeOnEvents.signUp` | `sign_up` | 회원가입 | method |
+| `NudgeOnEvents.login` | `login` | 로그인 | method |
+| `NudgeOnEvents.purchaseCompleted` | `purchase_completed` | 구입 | order_id, total_amount, currency, item_count |
+| `NudgeOnEvents.productViewed` | `product_viewed` | 상품 조회 | product_id, price, currency |
+| `NudgeOnEvents.addToCart` | `add_to_cart` | 장바구니 담기 | product_id, quantity, price, currency |
+| `NudgeOnEvents.checkoutStarted` | `checkout_started` | 결제 시작 | cart_id, item_count, total_amount, currency |
+
+금액은 통화의 기본 단위(원·달러 등) 숫자, 통화는 ISO 4217 코드(`KRW`, `USD` 등)를 사용합니다. 속성은 권장 예시이며 서비스별 속성도 추가할 수 있습니다.
+기존 `track("custom_event", ...)`는 그대로 지원하며 `purchase` 같은 기존 이름을 자동 변환하지 않습니다.
+이름은 대소문자까지 콘솔 설정과 같아야 합니다. 상수 참조 자체는 이벤트를 만들지 않고, `login` 이벤트는 사용자 식별을 대신하지 않습니다.
+`track` 이후 오프라인 저장·배치·재시도는 기존 전송 경로를 사용합니다.
+
+
 ## 설치 (Swift Package Manager)
 
 ```swift
