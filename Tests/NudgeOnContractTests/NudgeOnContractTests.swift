@@ -14,6 +14,36 @@ final class NudgeOnContractTests: XCTestCase {
         }
     }
 
+    func testStandardEventsUseExistingTrackTransport() throws {
+        let names = [
+            NudgeOnEvents.signUp,
+            NudgeOnEvents.login,
+            NudgeOnEvents.purchaseCompleted,
+            NudgeOnEvents.productViewed,
+            NudgeOnEvents.addToCart,
+            NudgeOnEvents.checkoutStarted,
+            "purchase", // Existing custom names must not be normalized.
+        ]
+        let expectedNames = ["sign_up", "login", "purchase_completed", "product_viewed", "add_to_cart", "checkout_started", "purchase"]
+        var steps: [[String: Any]] = names.map { name in
+            ["call": "track", "args": ["name": name, "properties": [
+                "order_id": "order-123", "total_amount": 29000, "currency": "KRW", "item_count": 1
+            ]]]
+        }
+        steps.append(["call": "flush"])
+        var asserts: [[String: Any]] = []
+        for (index, name) in expectedNames.enumerated() {
+            asserts.append(["pointer": "batch.\(index).event", "equals": name])
+            asserts.append(["pointer": "batch.\(index).properties.total_amount", "equals": 29000])
+            asserts.append(["pointer": "batch.\(index).properties.currency", "equals": "KRW"])
+        }
+        let scenario = try XCTUnwrap(Scenario(json: [
+            "name": "standard_events", "config": ["autoTrackSessions": false, "flushBatchSize": 100],
+            "steps": steps, "expect": [["path": "/v1/track", "asserts": asserts]],
+        ]))
+        try runScenario(scenario)
+    }
+
     private func runScenario(_ s: Scenario) throws {
         let server = try MockIngestServer()
         defer { server.stop() }

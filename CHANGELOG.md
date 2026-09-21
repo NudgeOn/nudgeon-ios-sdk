@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add public `NudgeOnEvents` constants for sign-up, login, purchase, product views, cart additions, and checkout starts, matching the console catalog.
+- Document recommended properties and preserve custom event names and the existing track transport.
+
 ## 0.2.6 — 2026-09-19
 
 - Expose non-secret review context in `transferStatus.review`: latest run/revision, authoritative session/run expiry, last delivery attempt and observed receipt time.
