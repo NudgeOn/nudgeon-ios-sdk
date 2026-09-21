@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.7 — 2026-09-22
 
 - Add public `NudgeOnEvents` constants for sign-up, login, purchase, product views, cart additions, and checkout starts, matching the console catalog.
 - Document recommended properties and preserve custom event names and the existing track transport.
