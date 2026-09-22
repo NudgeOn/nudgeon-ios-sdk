@@ -44,6 +44,52 @@ final class NudgeOnContractTests: XCTestCase {
         try runScenario(scenario)
     }
 
+    func testStandardAttributesUseIdentifyTransport() throws {
+        let attrs: [String: Any] = [
+            NudgeOnAttributes.firstName: "Minji",
+            NudgeOnAttributes.lastName: "Kim",
+            NudgeOnAttributes.email: "minji@example.com",
+            NudgeOnAttributes.phone: "+821012345678",
+            NudgeOnAttributes.dateOfBirth: "1995-03-15",
+            NudgeOnAttributes.gender: "F",
+            NudgeOnAttributes.homeCity: "Seoul",
+            NudgeOnAttributes.country: "KR",
+            NudgeOnAttributes.language: "ko",
+            NudgeOnAttributes.timezone: "Asia/Seoul",
+            NudgeOnAttributes.createdAt: "2026-09-22T00:00:00Z",
+            "score": 0, "enabled": false, "interests": ["music"], "removed": NSNull()
+        ]
+        let expected: [String: Any] = [
+            "first_name": "Minji",
+            "last_name": "Kim",
+            "email": "minji@example.com",
+            "phone": "+821012345678",
+            "dob": "1995-03-15",
+            "gender": "F",
+            "home_city": "Seoul",
+            "country": "KR",
+            "language": "ko",
+            "timezone": "Asia/Seoul",
+            "created_at": "2026-09-22T00:00:00Z",
+            "score": 0, "enabled": false, "interests": ["music"], "removed": NSNull()
+        ]
+        let scenario = try XCTUnwrap(Scenario(json: [
+            "name": "standard_attributes", "config": ["autoTrackSessions": false],
+            "steps": [
+                ["call": "identify", "args": ["externalId": "profile-123"]],
+                ["call": "setUserAttributes", "args": ["attrs": attrs]],
+            ],
+            "expect": [
+                ["path": "/v1/identify", "asserts": [["pointer": "attributes", "equals": [:]]]],
+                ["path": "/v1/identify", "asserts": [
+                    ["pointer": "external_id", "equals": "profile-123"],
+                    ["pointer": "attributes", "equals": expected],
+                ]],
+            ],
+        ]))
+        try runScenario(scenario)
+    }
+
     private func runScenario(_ s: Scenario) throws {
         let server = try MockIngestServer()
         defer { server.stop() }
