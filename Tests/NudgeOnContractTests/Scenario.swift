@@ -81,6 +81,12 @@ enum JSONMatch {
     static func equal(_ a: Any?, _ b: Any?) -> Bool {
         if let x = a as? String, let y = b as? String { return x == y }
         if let x = a as? NSNumber, let y = b as? NSNumber { return x.isEqual(y) }
+        if a is NSNull && b is NSNull { return true }
+        if let a, let b, JSONSerialization.isValidJSONObject(a), JSONSerialization.isValidJSONObject(b),
+           let lhs = try? JSONSerialization.data(withJSONObject: a, options: [.sortedKeys]),
+           let rhs = try? JSONSerialization.data(withJSONObject: b, options: [.sortedKeys]) {
+            return lhs == rhs
+        }
         return false
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.8 — 2026-09-22
+
+- Add `NudgeOnAttributes` profile keys for names, contact details, birthday, gender, home city, country, language, time zone, and signup date. Use the existing `setUserAttributes` API after `identify`; custom keys and null/unset remain supported.
+
 ## 0.2.7 — 2026-09-22
 
 - Add public `NudgeOnEvents` constants for sign-up, login, purchase, product views, cart additions, and checkout starts, matching the console catalog.

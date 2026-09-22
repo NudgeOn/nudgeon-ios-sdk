@@ -10,7 +10,7 @@ CocoaPods 코어·알림 확장 배포 준비와 검증은 [COCOAPODS.md](COCOAP
 [NudgeOn](https://nudgeon.io) 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
 이벤트를 수집하고 푸시를 수신합니다. 공통 이벤트·식별·푸시 API를 제공합니다.
 
-> **파트너 베타 후보입니다.** SPM 0.2.7는 공개 배포되었으며, CocoaPods core/NSE는
+> **파트너 베타 후보입니다.** SPM 0.2.8는 공개 배포되었으며, CocoaPods core/NSE는
 > 검증·배포 준비를 마치고 메인테이너 로그인 후 trunk 게시를 기다립니다.
 > 플랫폼 전체의 관리형 저장소·목표 부하·24시간 시험과 외부 온보딩 검증은 남아 있습니다.
 > 최신 단말·공급자 검증 범위는 [출시 체크리스트](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)를 확인하세요.
@@ -22,6 +22,42 @@ CocoaPods 코어·알림 확장 배포 준비와 검증은 [COCOAPODS.md](COCOAP
 - **개발자센터** — [nudgeon.io](https://nudgeon.io)
 - **인앱 웹 소스 테스트** — [NudgeOnInApp 연결 안내](IN-APP-TESTING.md) (0.2.7)
 
+
+## 기본 사용자 속성 (0.2.8+)
+
+`NudgeOnAttributes`는 `setUserAttributes`에 전달할 키 상수입니다. 키 상수는 0.2.8부터 제공됩니다. 이전 버전에서는 문자열 키를 사용할 수 있습니다. SDK 초기화 후 `identify`를 먼저 호출하세요. 식별 전 속성 설정은 현재 지원하지 않습니다.
+
+```swift
+NudgeOn.identify(externalId: "user-123")
+NudgeOn.setUserAttributes([
+    NudgeOnAttributes.firstName: .string("Minji"),
+    NudgeOnAttributes.email: .string("minji@example.com"),
+    NudgeOnAttributes.dateOfBirth: .string("1995-03-15"),
+    NudgeOnAttributes.country: .string("KR"),
+    NudgeOnAttributes.timezone: .string("Asia/Seoul"),
+    "membership_level": .string("gold")
+])
+// Delete a value:
+NudgeOn.setUserAttributes([NudgeOnAttributes.phone: .null])
+```
+
+| 상수 | 전송 키 | 예시 |
+|---|---|---|
+| `NudgeOnAttributes.firstName` | `first_name` | `Minji` |
+| `NudgeOnAttributes.lastName` | `last_name` | `Kim` |
+| `NudgeOnAttributes.email` | `email` | `minji@example.com` |
+| `NudgeOnAttributes.phone` | `phone` | `+821012345678` |
+| `NudgeOnAttributes.dateOfBirth` | `dob` | `1995-03-15` |
+| `NudgeOnAttributes.gender` | `gender` | `F` |
+| `NudgeOnAttributes.homeCity` | `home_city` | `Seoul` |
+| `NudgeOnAttributes.country` | `country` | `KR` |
+| `NudgeOnAttributes.language` | `language` | `ko` |
+| `NudgeOnAttributes.timezone` | `timezone` | `Asia/Seoul` |
+| `NudgeOnAttributes.createdAt` | `created_at` | `2026-09-22T00:00:00Z` |
+
+생일은 `YYYY-MM-DD` 문자열, 가입일은 시간대가 있는 RFC 3339 문자열을 사용합니다. 전화번호는 E.164, 국가·언어는 `KR`·`ko` 같은 코드, 시간대는 IANA 이름을 권장합니다. `gender` 권장 코드는 `M`, `F`, `O`, `N`, `P`, `U`입니다. Braze `time_zone`은 기존 NudgeOn 키 `timezone`으로 전달합니다.
+
+값은 자동 수집·변환하지 않으며 커스텀 키도 지원합니다. `null`은 값을 삭제합니다. 현재 속성 전송은 네트워크 요청이며 이벤트 오프라인 큐의 영속 재시도 보장을 제공하지 않습니다. 실패에 대비한 재동기화는 앱에서 수행하세요. 푸시 수신 동의는 `setPushSubscription`을 사용하며 `push_subscribe` 같은 일반 속성으로 변경하지 않습니다.
 
 ## 기본 이벤트 (Standard events — 0.2.7+)
 
@@ -59,7 +95,7 @@ NudgeOn.track(NudgeOnEvents.purchaseCompleted, properties: [
 ## 설치 (Swift Package Manager)
 
 ```swift
-.package(url: "https://github.com/NudgeOn/nudgeon-ios-sdk.git", from: "0.2.7")
+.package(url: "https://github.com/NudgeOn/nudgeon-ios-sdk.git", from: "0.2.8")
 ```
 
 ## 빠른 시작
@@ -154,7 +190,7 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 
 - **M1** ✅ init·identify·track·오프라인 큐
 - **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사(권한 포함)·NSE 도달·rich push
-- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/NudgeOnContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/NudgeOnDemo`) / ✅ SPM 0.2.7 배포 / ☐ CocoaPods trunk 게시 (준비·lint 완료)
+- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/NudgeOnContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/NudgeOnDemo`) / ✅ SPM 0.2.8 배포 / ☐ CocoaPods trunk 게시 (준비·lint 완료)
 
 
 ## 테스트
