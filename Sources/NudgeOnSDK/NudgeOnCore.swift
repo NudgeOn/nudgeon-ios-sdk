@@ -237,10 +237,10 @@ final class NudgeOnCore {
         let ids = Set(batch.map { $0.insertId })
         network.sendTrack(batch) { [self] ok in
             work.async {
-                if ok { queue.ack(ids) }
+                let acknowledged = ok && queue.ack(ids)
                 flushing = false
                 // 잔여분(전송 중 유입·배치 초과) 즉시 이어서 배출 — 타이머 대기 없이 백로그 해소.
-                if ok, queue.count > 0 { flushSync() }
+                if acknowledged, queue.count > 0 { flushSync() }
             }
         }
     }

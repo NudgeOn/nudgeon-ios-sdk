@@ -14,7 +14,7 @@ let package = Package(
     targets: [
         .target(name: "NudgeOnInApp", dependencies: ["NudgeOnSDK"]),
         .testTarget(name: "NudgeOnInAppTests", dependencies: ["NudgeOnInApp"]),
-        .target(name: "NudgeOnSDK"),
+        .target(name: "NudgeOnSDK", linkerSettings: [.linkedLibrary("sqlite3")]),
         .target(name: "NudgeOnNotificationService", dependencies: ["NudgeOnSDK"]),
         .testTarget(name: "NudgeOnSDKTests", dependencies: ["NudgeOnSDK"]),
         // 계약 테스트 — 공용 시나리오(contract-tests/scenarios) × 목 서버 (DEV-sub-05 S-10).

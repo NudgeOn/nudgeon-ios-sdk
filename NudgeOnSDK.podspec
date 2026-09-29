@@ -9,5 +9,6 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = "15.0"
   s.swift_version = "5.9"
   s.source_files = "Sources/NudgeOnSDK/**/*.swift"
+  s.libraries = "sqlite3"
   s.frameworks = "Foundation", "UIKit", "UserNotifications"
 end

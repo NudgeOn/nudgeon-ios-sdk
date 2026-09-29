@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Replace the JSON event queue with a transactional SQLite FIFO; retain the 1,000-event oldest-drop policy and existing tracking/flush APIs.
+- Import legacy events and a migration marker in one transaction; never replay acknowledged events when legacy file cleanup fails.
+- Preserve existing storage on database/migration errors and retry on subsequent access; storage failures do not crash the host app.
+- Add real-SQLite regression coverage for reopen, migration rollback, acknowledgement rollback, capacity, nested properties, concurrent connections and corruption.
+
+- Preserve recursive JSON properties and distinguish bridged booleans from numeric values during persistence.
+
 ## 0.2.8 — 2026-09-22
 
 - Add `NudgeOnAttributes` profile keys for names, contact details, birthday, gender, home city, country, language, time zone, and signup date. Use the existing `setUserAttributes` API after `identify`; custom keys and null/unset remain supported.

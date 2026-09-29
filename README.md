@@ -168,7 +168,7 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 
 ## 아키텍처
 
-- **네이티브 코어가 유일한 상태 보유자** — 오프라인 큐(파일 영속), anon/device ID 영속,
+- **네이티브 코어가 유일한 상태 보유자** — 오프라인 큐(SQLite 영속), anon/device ID 영속,
   배치 플러시, 재시도. 브리지(RN/Flutter)는 무상태 전달만.
 - `NudgeOnSDK` (코어) + `NudgeOnNotificationService` (NSE — 도달 트래킹·rich push).
 
@@ -179,12 +179,21 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 | `NudgeOn.swift` | 공개 API (initialize·identify·track·reset·flush) |
 | `NudgeOnCore.swift` | 코어 오케스트레이터 (큐·네트워크·플러시 타이머) |
 | `Identity.swift` | anon/external/device ID 영속 (reset 정책) |
-| `EventQueue.swift` | 오프라인 영속 큐 (1000건 상한·oldest drop) |
+| `EventQueue.swift` | SQLite 영속 큐 (1000건 상한·oldest drop) |
 | `Network.swift` | /v1/track·identify·devices/token 클라이언트 |
 | `PushPayload.swift` | APNs userInfo 파싱·PushPermissionResult·SubscriptionState |
 | `PushManager.swift` | 권한·토큰 대사(S-5)·구독 상태 |
 | `EventBus.swift` | pushOpened/Received 리스너·콜드스타트 20건 버퍼·재생 |
 | `SharedConfig.swift`·`NudgeOnDelivery.swift` | App Group 미러링(설정+식별자)·NSE 도달 리포터 |
+
+## SQLite 이벤트 큐 (다음 릴리스 소스)
+
+- `track()`으로 저장한 이벤트를 SQLite의 `nudgeon_events.sqlite`에 보관합니다. `track()`·`flush()`의 공개 API와 배치 전송 설정은 동일합니다. DB 열기와 이전 작업은 SDK 워커에서 실행합니다.
+- 기존 `nudgeon_events.json`은 첫 접근 시 트랜잭션으로 이전합니다. 이벤트와 이전 완료 마커를 함께 커밋한 뒤 JSON 파일을 삭제하므로, 파일 삭제 전에 앱이 종료돼도 이미 처리한 이벤트가 다시 복원되지 않습니다.
+- 저장 순서, `insert_id`, 발생 시각과 사용자 식별자를 유지합니다. 전송 성공 후 해당 ID만 삭제하며, 전송 실패 시 다음 flush에서 재시도합니다. 서버 수신 후 로컬 삭제 전에 앱이 종료되면 같은 ID로 재전송할 수 있습니다.
+- 최대 1,000건을 유지하고 초과 시 가장 오래된 이벤트를 삭제합니다. 디스크 부족·DB 손상·잘못된 이전 파일에서는 경고를 남기고 저장 실패를 처리하며, 기존 DB나 JSON을 자동 초기화하지 않습니다. 이 상태에서 새 이벤트의 저장은 보장되지 않습니다. 문제 해결 후 다음 큐 접근에서 다시 시도합니다.
+- 기존 JSON만 읽는 구버전 SDK로 내려가면 SQLite에 남아 있는 이벤트를 읽을 수 없습니다. 다운그레이드 전 큐를 비우세요.
+- RN·Flutter는 네이티브 큐를 사용합니다. 배포된 구버전 의존성에는 이 변경이 포함되지 않으므로, 새 네이티브 코어 출시 후 각 브리지의 고정 버전을 갱신해야 합니다.
 
 ## 로드맵
 
