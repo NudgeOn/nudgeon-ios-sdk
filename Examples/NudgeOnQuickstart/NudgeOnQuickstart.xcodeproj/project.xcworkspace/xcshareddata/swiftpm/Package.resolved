@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/NudgeOn/nudgeon-ios-sdk.git",
       "state" : {
-        "revision" : "5c3eaa8db39a9b5127ff092bd3de16779b683490",
-        "version" : "0.1.0"
+        "revision" : "8912daf86fbc143b4b3bc1272f8f3871927eae4e",
+        "version" : "0.2.9"
       }
     }
   ],
