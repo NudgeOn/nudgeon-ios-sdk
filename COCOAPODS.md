@@ -13,11 +13,12 @@ pod lib lint NudgeOnNotificationService.podspec \
 ```
 
 CI validates the checked-out source, including the SQLite link. After publishing
-the tag, validate the downloadable source before pushing either pod:
+the tag, validate the downloadable core and the checked-out extension against
+that public core before pushing either pod:
 
 ```sh
 pod spec lint NudgeOnSDK.podspec --platforms=ios --allow-warnings
-pod spec lint NudgeOnNotificationService.podspec \
+pod lib lint NudgeOnNotificationService.podspec \
   --external-podspecs=NudgeOnSDK.podspec --platforms=ios --allow-warnings
 ```
 

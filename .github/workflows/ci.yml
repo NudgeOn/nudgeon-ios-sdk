@@ -72,7 +72,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: xcodebuild -version
-      # Examples/NudgeOnQuickstart 는 로컬 소스가 아니라 게시된 Swift Package(0.1.0)를
+      # Examples/NudgeOnQuickstart 는 로컬 소스가 아니라 게시된 Swift Package(0.2.9)를
       # 원격에서 받는다. 게시본이 실제로 앱에 통합 가능한지 계속 검증한다.
       - name: 원격 패키지 참조인지 확인
         run: |

@@ -10,7 +10,7 @@ CocoaPods 코어·알림 확장 배포 준비와 검증은 [COCOAPODS.md](COCOAP
 [NudgeOn](https://nudgeon.io) 고객 인게이지먼트 플랫폼의 iOS(Swift) 네이티브 코어 SDK.
 이벤트를 수집하고 푸시를 수신합니다. 공통 이벤트·식별·푸시 API를 제공합니다.
 
-> **파트너 베타 후보입니다.** SPM 0.2.8는 공개 배포되었으며, CocoaPods core/NSE는
+> **파트너 베타 후보입니다.** SPM 0.2.9는 공개 배포되었으며, CocoaPods core/NSE는
 > 검증·배포 준비를 마치고 메인테이너 로그인 후 trunk 게시를 기다립니다.
 > 플랫폼 전체의 관리형 저장소·목표 부하·24시간 시험과 외부 온보딩 검증은 남아 있습니다.
 > 최신 단말·공급자 검증 범위는 [출시 체크리스트](https://github.com/NudgeOn/nudgeon-platform/blob/main/docs-public/RELEASE-CHECKLIST.md)를 확인하세요.
@@ -95,7 +95,7 @@ NudgeOn.track(NudgeOnEvents.purchaseCompleted, properties: [
 ## 설치 (Swift Package Manager)
 
 ```swift
-.package(url: "https://github.com/NudgeOn/nudgeon-ios-sdk.git", from: "0.2.8")
+.package(url: "https://github.com/NudgeOn/nudgeon-ios-sdk.git", from: "0.2.9")
 ```
 
 ## 빠른 시작
@@ -186,7 +186,7 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 | `EventBus.swift` | pushOpened/Received 리스너·콜드스타트 20건 버퍼·재생 |
 | `SharedConfig.swift`·`NudgeOnDelivery.swift` | App Group 미러링(설정+식별자)·NSE 도달 리포터 |
 
-## SQLite 이벤트 큐 (0.2.9 출시 후보)
+## SQLite 이벤트 큐 (0.2.9+)
 
 - `track()`으로 저장한 이벤트를 SQLite의 `nudgeon_events.sqlite`에 보관합니다. `track()`·`flush()`의 공개 API와 배치 전송 설정은 동일합니다. DB 열기와 이전 작업은 SDK 워커에서 실행합니다.
 - 기존 `nudgeon_events.json`은 첫 접근 시 트랜잭션으로 이전합니다. 이벤트와 이전 완료 마커를 함께 커밋한 뒤 JSON 파일을 삭제하므로, 파일 삭제 전에 앱이 종료돼도 이미 처리한 이벤트가 다시 복원되지 않습니다.
@@ -199,7 +199,7 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 
 - **M1** ✅ init·identify·track·오프라인 큐
 - **M2** ✅ reset·속성·푸시 등록·리스너(콜드스타트)·토큰 대사(권한 포함)·NSE 도달·rich push
-- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/NudgeOnContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/NudgeOnDemo`) / ✅ SPM 0.2.8 배포 / ☐ CocoaPods trunk 게시 (준비·lint 완료)
+- **M4** ✅ 계약 테스트(`contract-tests/`·`Tests/NudgeOnContractTests`)·실행 가능한 UIKit 데모 앱(`Examples/NudgeOnDemo`) / ✅ SPM 0.2.9 배포 / ☐ CocoaPods trunk 게시 (준비·lint 완료)
 
 
 ## 테스트
