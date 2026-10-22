@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.9 — 2026-10-22
 
 - Replace the JSON event queue with a transactional SQLite FIFO; retain the 1,000-event oldest-drop policy and existing tracking/flush APIs.
 - Import legacy events and a migration marker in one transaction; never replay acknowledged events when legacy file cleanup fails.

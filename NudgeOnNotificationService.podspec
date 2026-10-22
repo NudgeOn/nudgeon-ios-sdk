@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name = "NudgeOnNotificationService"
-  s.version = "0.2.2"
+  s.version = "0.2.9"
   s.summary = "NudgeOn notification service extension for delivery receipts and rich push."
   s.homepage = "https://github.com/NudgeOn/nudgeon-ios-sdk"
   s.license = { :type => "Apache-2.0", :file => "LICENSE" }
@@ -10,5 +10,5 @@ Pod::Spec.new do |s|
   s.swift_version = "5.9"
   s.source_files = "Sources/NudgeOnNotificationService/**/*.swift"
   s.frameworks = "Foundation", "UserNotifications"
-  s.dependency "NudgeOnSDK", "= 0.2.2"
+  s.dependency "NudgeOnSDK", "= 0.2.9"
 end

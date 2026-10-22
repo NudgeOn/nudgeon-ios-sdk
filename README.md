@@ -186,7 +186,7 @@ NSE는 이를 읽어 서버 수집 스키마(UUID `anon_id` 또는 `external_id`
 | `EventBus.swift` | pushOpened/Received 리스너·콜드스타트 20건 버퍼·재생 |
 | `SharedConfig.swift`·`NudgeOnDelivery.swift` | App Group 미러링(설정+식별자)·NSE 도달 리포터 |
 
-## SQLite 이벤트 큐 (다음 릴리스 소스)
+## SQLite 이벤트 큐 (0.2.9 출시 후보)
 
 - `track()`으로 저장한 이벤트를 SQLite의 `nudgeon_events.sqlite`에 보관합니다. `track()`·`flush()`의 공개 API와 배치 전송 설정은 동일합니다. DB 열기와 이전 작업은 SDK 워커에서 실행합니다.
 - 기존 `nudgeon_events.json`은 첫 접근 시 트랜잭션으로 이전합니다. 이벤트와 이전 완료 마커를 함께 커밋한 뒤 JSON 파일을 삭제하므로, 파일 삭제 전에 앱이 종료돼도 이미 처리한 이벤트가 다시 복원되지 않습니다.
