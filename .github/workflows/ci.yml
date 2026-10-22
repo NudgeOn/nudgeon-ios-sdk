@@ -12,15 +12,15 @@ concurrency:
 
 jobs:
   cocoapods:
-    name: CocoaPods (published tag source)
+    name: CocoaPods (release candidate source)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Validate core from public 0.2.2 tag
-        # Published 0.2.2 is Swift 5.9; Xcode emits Swift 6 migration warnings.
-        run: pod spec lint NudgeOnSDK.podspec --platforms=ios --allow-warnings --verbose
-      - name: Validate notification extension with public core source
-        run: pod lib lint NudgeOnNotificationService.podspec --external-podspecs=NudgeOnSDK.podspec --platforms=ios --allow-warnings --verbose
+      - name: Validate checked-out core
+        # Candidate tags may not exist yet. Remote tag lint is a release gate.
+        run: pod lib lint NudgeOnSDK.podspec --platforms=ios --allow-warnings --verbose
+      - name: Validate notification extension with checked-out core
+        run: pod lib lint NudgeOnNotificationService.podspec --include-podspecs=NudgeOnSDK.podspec --platforms=ios --allow-warnings --verbose
 
   swift-package:
     name: swift build + test (macOS)
